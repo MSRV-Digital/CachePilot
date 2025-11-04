@@ -133,7 +133,7 @@ The installation script will check for and install missing dependencies, but you
 1. **Clone and navigate:**
    ```bash
    git clone https://github.com/MSRV-Digital/CachePilot.git
-   cd redis-manager
+   cd CachePilot
    ```
 
 2. **Create system backup (critical)**
