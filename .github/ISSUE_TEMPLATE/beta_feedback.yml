@@ -1,0 +1,83 @@
+name: Beta Feedback
+description: Provide feedback on the beta release
+title: "[Beta]: "
+labels: ["beta", "feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for testing CachePilot v2.1.0-beta!
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Test Area
+      description: What did you test?
+      options:
+        - Installation
+        - CLI Commands
+        - API
+        - Frontend
+        - Monitoring
+        - Backup/Restore
+        - RedisInsight
+        - Multi-tenant setup
+        - Performance
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: CachePilot Version
+      placeholder: "2.1.0-beta"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - Ubuntu 22.04 LTS
+        - Ubuntu 24.04 LTS
+        - Debian 12 (Bookworm)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: observations
+    attributes:
+      label: Observations
+      description: What did you observe during testing?
+      placeholder: Share your experience...
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestions
+    attributes:
+      label: Suggestions
+      description: How can we improve?
+      placeholder: Your improvement ideas...
+
+  - type: dropdown
+    id: rating
+    attributes:
+      label: Overall Experience
+      options:
+        - Excellent
+        - Good
+        - Fair
+        - Poor
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Feedback
+      description: Anything else we should know?

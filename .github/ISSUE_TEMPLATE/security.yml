@@ -1,0 +1,71 @@
+name: Security Vulnerability
+description: Report a security issue
+title: "[Security]: "
+labels: ["security"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **IMPORTANT: Do NOT disclose security vulnerabilities publicly.**
+        
+        For sensitive security issues, please email: **cachepilot@msrv-digital.de**
+        
+        See [SECURITY.md](https://github.com/MSRV-Digital/CachePilot/blob/main/docs/SECURITY.md) for our security policy.
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Critical
+        - High
+        - Medium
+        - Low
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      options:
+        - API
+        - Frontend
+        - CLI
+        - Authentication
+        - Certificates/TLS
+        - Docker/Containers
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Non-sensitive description of the issue
+      placeholder: Describe the security concern without revealing exploits...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Affected Version
+      placeholder: "2.1.0-beta"
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Potential Impact
+      description: What could happen if exploited?
+      placeholder: Describe potential impact...
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        **Remember:** For detailed vulnerability reports with exploits or POC, please use email instead of this form.

@@ -1,0 +1,14 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://github.com/MSRV-Digital/CachePilot/blob/main/README.md
+    about: Read the project documentation
+  - name: Security Policy
+    url: https://github.com/MSRV-Digital/CachePilot/blob/main/docs/SECURITY.md
+    about: Review security guidelines
+  - name: Contributing Guide
+    url: https://github.com/MSRV-Digital/CachePilot/blob/main/CONTRIBUTING.md
+    about: Learn how to contribute
+  - name: Email Support
+    url: mailto:cachepilot@msrv-digital.de
+    about: Contact us directly
