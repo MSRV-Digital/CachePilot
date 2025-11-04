@@ -112,7 +112,7 @@ start_container() {
     local tenant_dir="${TENANTS_DIR}/${tenant}"
     
     cd "$tenant_dir"
-    docker compose up -d --remove-orphans 2>&1 | grep -v "Found orphan containers"
+    docker-compose up -d --remove-orphans 2>&1 | grep -v "Found orphan containers"
     
     log "Waiting for container to be healthy..."
     local max_wait=60
@@ -136,7 +136,7 @@ stop_container() {
     local tenant_dir="${TENANTS_DIR}/${tenant}"
     
     cd "$tenant_dir"
-    docker compose down
+    docker-compose down
 }
 
 restart_container() {
@@ -144,7 +144,7 @@ restart_container() {
     local tenant_dir="${TENANTS_DIR}/${tenant}"
     
     cd "$tenant_dir"
-    docker compose restart
+    docker-compose restart
 }
 
 update_all_instances() {
@@ -164,7 +164,7 @@ update_all_instances() {
                 log "Updating tenant: $tenant"
                 
                 cd "$tenant_dir"
-                if docker compose up -d --force-recreate; then
+                if docker-compose up -d --force-recreate; then
                     log "Waiting for health check..."
                     
                     local count=0

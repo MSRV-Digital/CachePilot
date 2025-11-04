@@ -39,8 +39,8 @@ paths:
 # Network configuration
 # IMPORTANT: Configure these values for your deployment
 network:
-  internal_ip: 192.168.1.100   # Internal server IP address
-  public_ip: 203.0.113.10      # Public-facing IP address or domain
+  internal_ip: 127.0.0.1       # Internal server IP address
+  public_ip: 127.0.0.1         # Public-facing IP address or domain
   redis_port_start: 7300
   redis_port_end: 7399
   insight_port_start: 8300

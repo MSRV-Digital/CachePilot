@@ -329,13 +329,13 @@ main() {
                 
                 case "$status" in
                     "healthy")
-                        echo "Overall Status: ${GREEN}HEALTHY${NC}"
+                        echo -e "Overall Status: ${GREEN}HEALTHY${NC}"
                         ;;
                     "degraded")
-                        echo "Overall Status: ${YELLOW}DEGRADED${NC}"
+                        echo -e "Overall Status: ${YELLOW}DEGRADED${NC}"
                         ;;
                     "unhealthy")
-                        echo "Overall Status: ${RED}UNHEALTHY${NC}"
+                        echo -e "Overall Status: ${RED}UNHEALTHY${NC}"
                         ;;
                     *)
                         echo "Overall Status: UNKNOWN"

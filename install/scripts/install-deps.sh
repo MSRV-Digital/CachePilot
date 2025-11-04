@@ -174,6 +174,11 @@ if ! command -v curl &> /dev/null; then
     PACKAGES_TO_INSTALL+=(curl)
 fi
 
+if ! command -v zip &> /dev/null; then
+    echo -e "${YELLOW}Installing zip...${NC}"
+    PACKAGES_TO_INSTALL+=(zip)
+fi
+
 if [ ${#PACKAGES_TO_INSTALL[@]} -gt 0 ]; then
     echo ""
     echo "Installing packages: ${PACKAGES_TO_INSTALL[*]}"

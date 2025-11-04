@@ -71,7 +71,7 @@ enable_redisinsight() {
     
     log "Starting containers..."
     cd "$tenant_dir"
-    docker compose up -d
+    docker-compose up -d
     
     log "Waiting for containers to start..."
     sleep 3

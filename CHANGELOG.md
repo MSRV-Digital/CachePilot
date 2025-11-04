@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Docker Compose v1 compatibility**: Changed `docker compose` to `docker-compose` syntax (cli/lib/docker.sh, cli/lib/redisinsight.sh)
+- **Default IP configuration**: Updated config template to use safe localhost defaults (127.0.0.1)
+- **Missing zip dependency**: Added zip package to install-deps.sh
+- **Handover script bug**: Fixed unbound variable error when RedisInsight not enabled (cli/lib/handover.sh)
+- **Docker stats parsing**: Added error handling to prevent jq parse errors in status command (cli/lib/monitoring.sh)
+- **Health command display**: Fixed color codes showing as literal escape sequences (cli/cachepilot)
 - **dpkg lock handling**: Installation scripts now only wait for actual dpkg locks, not background processes
   - `install/scripts/install-deps.sh`: Optimized lock detection to check only lock files
   - `install/scripts/setup-nginx.sh`: Optimized lock detection to check only lock files

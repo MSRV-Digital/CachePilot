@@ -24,6 +24,11 @@ generate_handover() {
     
     source "${tenant_dir}/config.env"
     
+    # Set defaults for optional variables
+    INSIGHT_PORT="${INSIGHT_PORT:-0}"
+    INSIGHT_USER="${INSIGHT_USER:-}"
+    INSIGHT_PASS="${INSIGHT_PASS:-}"
+    
     rm -rf "$temp_dir"
     mkdir -p "$temp_dir"
     

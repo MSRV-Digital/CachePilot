@@ -61,17 +61,20 @@ show_tenant_status() {
     echo "  Created: $CREATED"
     echo ""
     
-    local stats=$(get_container_stats "$tenant")
-    if [[ $? -eq 0 ]]; then
-        local cpu=$(echo "$stats" | jq -r '.CPUPerc' | tr -d '%')
-        local mem=$(echo "$stats" | jq -r '.MemUsage' | cut -d'/' -f1)
-        local mem_limit=$(echo "$stats" | jq -r '.MemUsage' | cut -d'/' -f2)
-        local mem_perc=$(echo "$stats" | jq -r '.MemPerc' | tr -d '%')
+    local stats=$(get_container_stats "$tenant" 2>/dev/null)
+    if [[ $? -eq 0 ]] && [[ -n "$stats" ]]; then
+        local cpu=$(echo "$stats" | jq -r '.CPUPerc' 2>/dev/null | tr -d '%')
+        local mem=$(echo "$stats" | jq -r '.MemUsage' 2>/dev/null | cut -d'/' -f1)
+        local mem_limit=$(echo "$stats" | jq -r '.MemUsage' 2>/dev/null | cut -d'/' -f2)
+        local mem_perc=$(echo "$stats" | jq -r '.MemPerc' 2>/dev/null | tr -d '%')
         
-        echo "Container Resources:"
-        echo "  CPU: ${cpu}%"
-        echo "  Memory: ${mem} / ${mem_limit} (${mem_perc}%)"
-        echo ""
+        # Only display if we got valid data
+        if [[ -n "$cpu" ]] && [[ -n "$mem" ]]; then
+            echo "Container Resources:"
+            echo "  CPU: ${cpu}%"
+            echo "  Memory: ${mem} / ${mem_limit} (${mem_perc}%)"
+            echo ""
+        fi
     fi
     
     local info=$(get_redis_info "$tenant")
