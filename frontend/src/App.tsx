@@ -13,7 +13,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { getApiClient, AUTH_ERROR_EVENT } from './api/client';
+import { getApiClient, AUTH_ERROR_EVENT, ApiClient } from './api/client';
 import { useAuth } from './hooks/useAuth';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
@@ -42,7 +42,7 @@ const Login: React.FC<{ onLogin: (key: string) => void; authError?: string }> = 
     
     try {
       // Create temporary client to validate key
-      const tempClient = new (await import('./api/client')).ApiClient(apiKey.trim());
+      const tempClient = new ApiClient(apiKey.trim());
       const isValid = await tempClient.validateApiKey();
       
       if (isValid) {

@@ -39,12 +39,8 @@ export const useAuth = (): UseAuthReturn => {
     localStorage.removeItem(API_KEY_STORAGE_KEY);
     localStorage.clear();
     
-    // Clear all cookies
-    document.cookie.split(";").forEach((c) => {
-      document.cookie = c
-        .replace(/^ +/, "")
-        .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-    });
+    // Clear sessionStorage (important for auth error messages)
+    sessionStorage.clear();
     
     // Update state
     setApiKeyState(null);
