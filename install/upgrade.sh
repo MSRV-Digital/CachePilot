@@ -147,8 +147,15 @@ fi
 
 echo ""
 
-# Step 3: Check dependencies
+# Step 3: Check and install dependencies
 echo -e "${BLUE}[3/8]${NC} Checking dependencies..."
+if [ -x "$SCRIPT_DIR/install/scripts/install-deps.sh" ]; then
+    bash "$SCRIPT_DIR/install/scripts/install-deps.sh"
+else
+    echo -e "${YELLOW}⚠${NC} install-deps.sh not found, skipping dependency installation"
+fi
+
+echo "Verifying dependencies..."
 if [ -x "$SCRIPT_DIR/install/scripts/check-deps.sh" ]; then
     bash "$SCRIPT_DIR/install/scripts/check-deps.sh"
 else
@@ -262,10 +269,25 @@ fi
 
 if [ -n "$VENV_PATH" ]; then
     echo "Using virtual environment: $VENV_PATH"
+    
+    # Check if pip exists in the venv, recreate if missing
+    if [ ! -f "$VENV_PATH/bin/pip" ]; then
+        echo -e "${YELLOW}⚠${NC} Virtual environment appears corrupted (pip not found)"
+        echo "Recreating virtual environment..."
+        rm -rf "$VENV_PATH"
+        python3 -m venv "$VENV_PATH"
+        echo -e "${GREEN}✓${NC} Virtual environment recreated"
+    fi
+    
     # Use the venv's pip directly instead of relying on activation
-    "$VENV_PATH/bin/pip" install --upgrade pip --quiet
-    "$VENV_PATH/bin/pip" install -r "$INSTALL_DIR/api/requirements.txt" --quiet
-    echo -e "${GREEN}✓${NC} Python dependencies updated"
+    if [ -f "$VENV_PATH/bin/pip" ]; then
+        "$VENV_PATH/bin/pip" install --upgrade pip --quiet
+        "$VENV_PATH/bin/pip" install -r "$INSTALL_DIR/api/requirements.txt" --quiet
+        echo -e "${GREEN}✓${NC} Python dependencies updated"
+    else
+        echo -e "${RED}✗${NC} Failed to create virtual environment properly"
+        echo "Please check Python3 installation"
+    fi
 else
     echo -e "${YELLOW}⚠${NC} Virtual environment not found, skipping Python dependencies"
     echo "Expected location: $INSTALL_DIR/venv or $INSTALL_DIR/api/venv"

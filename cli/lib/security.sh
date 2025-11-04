@@ -451,7 +451,7 @@ secure_file_deletion() {
 log_security_event() {
     local event_type="$1"
     local details="$2"
-    local log_file="${3:-/opt/cachepilot/data/logs/security.log}"
+    local log_file="${3:-${LOGS_DIR:-/var/log/cachepilot}/security.log}"
     
     local timestamp
     timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")

@@ -91,6 +91,31 @@ echo ""
 echo -e "${GREEN}✓${NC} Installation confirmed. Proceeding..."
 echo ""
 
+# Step 0: Copy configuration files FIRST (before anything else)
+echo -e "${BLUE}[0/10]${NC} Copying configuration files to /etc/cachepilot..."
+
+# Ensure /etc/cachepilot directory exists
+mkdir -p "/etc/cachepilot"
+
+# Copy configuration files from source to /etc/cachepilot
+if [ -d "$SCRIPT_DIR/config" ]; then
+    cp -r "$SCRIPT_DIR/config"/* "/etc/cachepilot/" 2>/dev/null || true
+    echo -e "${GREEN}✓${NC} Configuration files copied to /etc/cachepilot"
+    
+    # List what was copied
+    echo "Copied configuration files:"
+    ls -la /etc/cachepilot/*.yaml 2>/dev/null | awk '{print "  - " $9}' || echo "  (no .yaml files found)"
+else
+    echo -e "${RED}✗${NC} Configuration source directory not found: $SCRIPT_DIR/config"
+    exit 1
+fi
+
+# Set proper permissions immediately
+chmod 755 "/etc/cachepilot"
+chmod 640 "/etc/cachepilot"/*.yaml 2>/dev/null || true
+echo -e "${GREEN}✓${NC} Configuration permissions set"
+echo ""
+
 # Create backup of existing installation if it exists
 if [ -d "$INSTALL_DIR" ]; then
     BACKUP_DIR="/opt/cachepilot.backup.$(date +%Y%m%d_%H%M%S)"
@@ -109,8 +134,22 @@ if [ -d "$INSTALL_DIR" ]; then
     read -p "Press Enter to continue with installation..."
 fi
 
-# Step 1: Check dependencies
-echo -e "${BLUE}[1/8]${NC} Checking system dependencies..."
+# Step 1: Install dependencies
+echo -e "${BLUE}[1/8]${NC} Installing system dependencies..."
+if [ -x "$SCRIPT_DIR/install/scripts/install-deps.sh" ]; then
+    bash "$SCRIPT_DIR/install/scripts/install-deps.sh"
+else
+    echo -e "${RED}Error: install-deps.sh not found${NC}"
+    exit 1
+fi
+
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Dependency installation failed.${NC}"
+    exit 1
+fi
+echo ""
+
+echo "Verifying dependencies..."
 if [ -x "$SCRIPT_DIR/install/scripts/check-deps.sh" ]; then
     bash "$SCRIPT_DIR/install/scripts/check-deps.sh"
 else
@@ -119,7 +158,7 @@ else
 fi
 
 if [ $? -ne 0 ]; then
-    echo -e "${RED}Dependency check failed. Please install missing dependencies.${NC}"
+    echo -e "${RED}Dependency verification failed.${NC}"
     exit 1
 fi
 echo ""
@@ -154,6 +193,11 @@ if [ "$SCRIPT_DIR" != "$INSTALL_DIR" ]; then
     # Copy utility scripts
     cp -r "$SCRIPT_DIR/scripts"/* "$INSTALL_DIR/scripts/" 2>/dev/null || true
     
+    # Copy frontend
+    if [ -d "$SCRIPT_DIR/frontend" ]; then
+        cp -r "$SCRIPT_DIR/frontend"/* "$INSTALL_DIR/frontend/" 2>/dev/null || true
+        echo -e "${GREEN}✓${NC} Frontend files copied"
+    fi
     
     # Copy docs
     cp -r "$SCRIPT_DIR/docs"/* "$INSTALL_DIR/docs/" 2>/dev/null || true
@@ -163,14 +207,8 @@ if [ "$SCRIPT_DIR" != "$INSTALL_DIR" ]; then
     cp "$SCRIPT_DIR/LICENSE" "$INSTALL_DIR/" 2>/dev/null || true
     cp "$SCRIPT_DIR/CHANGELOG.md" "$INSTALL_DIR/" 2>/dev/null || true
     
-    # Copy configuration files to /etc/cachepilot (FHS-compliant location)
-    echo "Copying configuration files to /etc/cachepilot..."
-    if [ -d "$SCRIPT_DIR/config" ]; then
-        cp -r "$SCRIPT_DIR/config"/* "/etc/cachepilot/" 2>/dev/null || true
-        echo -e "${GREEN}✓${NC} Configuration files copied to /etc/cachepilot"
-    fi
-    
-    # Keep a copy in /opt/cachepilot/config for backwards compatibility reference
+    # Configuration files were already copied to /etc/cachepilot in Step 0
+    # Keep a reference note in /opt/cachepilot/config for backwards compatibility
     mkdir -p "$INSTALL_DIR/config" 2>/dev/null || true
     if [ ! -f "$INSTALL_DIR/config/README.txt" ]; then
         cat > "$INSTALL_DIR/config/README.txt" << 'EOF'
@@ -222,10 +260,10 @@ echo ""
 echo -e "${BLUE}[5/8]${NC} Initializing configuration..."
 
 # Check if system.yaml exists and is valid
-if [ -f "$INSTALL_DIR/config/system.yaml" ]; then
+if [ -f "/etc/cachepilot/system.yaml" ]; then
     echo -e "${GREEN}✓${NC} System configuration found"
 else
-    echo -e "${RED}✗${NC} System configuration not found: $INSTALL_DIR/config/system.yaml"
+    echo -e "${RED}✗${NC} System configuration not found: /etc/cachepilot/system.yaml"
     exit 1
 fi
 
@@ -260,9 +298,9 @@ echo "  Public IP: $PUBLIC_IP"
 echo ""
 
 # Update system.yaml with the configured IPs
-if [ -f "$INSTALL_DIR/config/system.yaml" ]; then
-    sed -i "s/internal_ip: localhost/internal_ip: $INTERNAL_IP/g" "$INSTALL_DIR/config/system.yaml"
-    sed -i "s/public_ip: not-configured/public_ip: $PUBLIC_IP/g" "$INSTALL_DIR/config/system.yaml"
+if [ -f "/etc/cachepilot/system.yaml" ]; then
+    sed -i "s/internal_ip: localhost/internal_ip: $INTERNAL_IP/g" "/etc/cachepilot/system.yaml"
+    sed -i "s/public_ip: not-configured/public_ip: $PUBLIC_IP/g" "/etc/cachepilot/system.yaml"
     echo -e "${GREEN}✓${NC} Network configuration updated in system.yaml"
 fi
 
@@ -332,6 +370,7 @@ echo ""
 
 read -p "Enter server domain/IP (default: localhost): " SERVER_DOMAIN
 SERVER_DOMAIN=${SERVER_DOMAIN:-localhost}
+echo
 
 read -p "Will you use SSL/HTTPS? (y/N): " USE_SSL
 USE_SSL=${USE_SSL:-N}
@@ -349,15 +388,14 @@ echo "  URL: $SERVER_URL"
 echo ""
 
 # Update configuration files with server URL
-if [ -f "$INSTALL_DIR/config/frontend.yaml" ]; then
-    sed -i "s|url: http://localhost|url: $SERVER_URL|g" "$INSTALL_DIR/config/frontend.yaml"
+if [ -f "/etc/cachepilot/frontend.yaml" ]; then
+    sed -i "s|url: http://localhost|url: $SERVER_URL|g" "/etc/cachepilot/frontend.yaml"
     echo -e "${GREEN}✓${NC} Updated frontend.yaml"
 fi
 
-if [ -f "$INSTALL_DIR/config/api.yaml" ]; then
-    # Update CORS origins
-    sed -i "s|http://localhost|$SERVER_URL|g" "$INSTALL_DIR/config/api.yaml"
-    sed -i "s|http://localhost:3000|$SERVER_URL|g" "$INSTALL_DIR/config/api.yaml"
+if [ -f "/etc/cachepilot/api.yaml" ]; then
+    sed -i "s|http://localhost|$SERVER_URL|g" "/etc/cachepilot/api.yaml"
+    sed -i "s|http://localhost:3000|$SERVER_URL|g" "/etc/cachepilot/api.yaml"
     echo -e "${GREEN}✓${NC} Updated api.yaml"
 fi
 
@@ -455,9 +493,9 @@ echo ""
 fi
 
 echo -e "${BLUE}Configuration:${NC}"
-echo "  System: $INSTALL_DIR/config/system.yaml"
-echo "  API: $INSTALL_DIR/config/api.yaml"
-echo "  Frontend: $INSTALL_DIR/config/frontend.yaml"
+echo "  System: /etc/cachepilot/system.yaml"
+echo "  API: /etc/cachepilot/api.yaml"
+echo "  Frontend: /etc/cachepilot/frontend.yaml"
 echo ""
 echo -e "${BLUE}Log Files:${NC}"
 echo "  Main: /var/log/cachepilot/cachepilot.log"

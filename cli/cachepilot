@@ -25,7 +25,7 @@ done
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 BASE_DIR="$(dirname "$SCRIPT_DIR")"
 CACHEPILOT_DIR="${BASE_DIR}"
-CONFIG_FILE="${BASE_DIR}/config/system.yaml"
+CONFIG_FILE="/etc/cachepilot/system.yaml"
 LIB_DIR="${SCRIPT_DIR}/lib"
 
 export CACHEPILOT_DIR
@@ -56,7 +56,6 @@ source "${LIB_DIR}/api.sh"
 
 TENANTS_DIR="${CONFIG_PATHS[tenants_dir]}"
 CA_DIR="${CONFIG_PATHS[ca_dir]}"
-TEMPLATES_DIR="${CONFIG_PATHS[templates_dir]}"
 
 show_version() {
     cat << EOF

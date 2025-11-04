@@ -39,6 +39,16 @@ if [ ! -d "$VENV_DIR" ]; then
     echo -e "${GREEN}✓${NC} Virtual environment created"
 else
     echo -e "${YELLOW}⚠${NC} Virtual environment already exists"
+    
+    # Check if pip exists in the venv, recreate if missing
+    VENV_PIP="$VENV_DIR/bin/pip"
+    if [ ! -f "$VENV_PIP" ]; then
+        echo -e "${YELLOW}⚠${NC} Virtual environment appears corrupted (pip not found)"
+        echo "Recreating virtual environment..."
+        rm -rf "$VENV_DIR"
+        python3 -m venv "$VENV_DIR"
+        echo -e "${GREEN}✓${NC} Virtual environment recreated"
+    fi
 fi
 
 # Install dependencies using virtual environment's pip directly
@@ -48,7 +58,8 @@ echo "Installing Python dependencies..."
 VENV_PIP="$VENV_DIR/bin/pip"
 
 if [ ! -f "$VENV_PIP" ]; then
-    echo -e "${RED}✗${NC} Virtual environment pip not found: $VENV_PIP"
+    echo -e "${RED}✗${NC} Failed to create virtual environment properly"
+    echo "Please check Python3 installation and try again"
     exit 1
 fi
 
@@ -86,14 +97,22 @@ else
     exit 1
 fi
 
-# Check if API configuration exists
-if [ ! -f "$BASE_DIR/config/api.yaml" ]; then
-    echo -e "${RED}✗${NC} API configuration not found: $BASE_DIR/config/api.yaml"
+# Check if API configuration exists in /etc/cachepilot
+CONFIG_FILE="/etc/cachepilot/api.yaml"
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo -e "${RED}✗${NC} API configuration not found: $CONFIG_FILE"
+    echo "The installation script should have copied configuration files to /etc/cachepilot/"
+    echo "Please run the main installation script first: $BASE_DIR/install/install.sh"
     exit 1
 fi
+echo -e "${GREEN}✓${NC} API configuration found: $CONFIG_FILE"
 
-# Generate API key if not exists
-API_KEYS_FILE="$BASE_DIR/config/api-keys.json"
+# Generate API key if not exists in /etc/cachepilot
+API_KEYS_FILE="/etc/cachepilot/api-keys.json"
+
+# Ensure the directory exists
+mkdir -p "/etc/cachepilot"
+
 if [ ! -f "$API_KEYS_FILE" ]; then
     echo "Generating initial API key..."
     
@@ -136,13 +155,13 @@ if [ -f "$API_KEYS_FILE" ]; then
     echo -e "${GREEN}✓${NC} API keys file permissions: 600"
 fi
 
-# Configuration files - should be 640 (rw-r-----)
+# Configuration files in /etc/cachepilot - should be 640 (rw-r-----)
 CONFIG_FILES=(
-    "$BASE_DIR/config/api.yaml"
-    "$BASE_DIR/config/system.yaml"
-    "$BASE_DIR/config/frontend.yaml"
-    "$BASE_DIR/config/logging-config.yaml"
-    "$BASE_DIR/config/monitoring-config.yaml"
+    "/etc/cachepilot/api.yaml"
+    "/etc/cachepilot/system.yaml"
+    "/etc/cachepilot/frontend.yaml"
+    "/etc/cachepilot/logging-config.yaml"
+    "/etc/cachepilot/monitoring-config.yaml"
 )
 
 for config_file in "${CONFIG_FILES[@]}"; do
@@ -192,8 +211,7 @@ if [ -f "$SYSTEMD_SERVICE" ]; then
     echo -e "${GREEN}✓${NC} Service enabled"
     
     # Ask if user wants to start now
-    read -p "Start API service now? (Y/n): " -n 1 -r
-    echo
+    read -p "Start API service now? (Y/n): " -r REPLY
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
         systemctl start cachepilot-api.service
         echo -e "${GREEN}✓${NC} Service started"

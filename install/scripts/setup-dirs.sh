@@ -13,7 +13,8 @@ echo "Setting up directory structure..."
 
 # Base directory
 BASE_DIR="/opt/cachepilot"
-CONFIG_FILE="$BASE_DIR/config/system.yaml"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+CONFIG_FILE="$SCRIPT_DIR/config/system.yaml"
 
 # Function to parse YAML and get value
 get_yaml_value() {

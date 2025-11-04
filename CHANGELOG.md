@@ -5,6 +5,54 @@ All notable changes to CachePilot will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2025-11-04
+
+### Fixed
+
+#### Installation Script Fixes
+- **Virtual environment corruption handling**: Fixed installation failure when Python venv exists but pip is missing
+  - `install/scripts/setup-api.sh`: Added automatic detection and recreation of corrupted virtual environments
+  - `install/upgrade.sh`: Same fix applied to upgrade process
+  - Impact: Installation continues successfully instead of failing with "pip not found" error
+
+- **Configuration file paths**: Standardized all configuration to use `/etc/cachepilot/` exclusively
+  - `cli/cachepilot`: Changed `CONFIG_FILE` from `${BASE_DIR}/config/system.yaml` to `/etc/cachepilot/system.yaml`
+  - `install/scripts/setup-api.sh`: Removed fallback logic, only checks `/etc/cachepilot/`
+  - `install/install.sh`: Configuration files copied to `/etc/cachepilot/` before any other steps (Step 0)
+  - Impact: Clear, predictable configuration location following FHS standard
+
+- **Missing frontend directory**: Fixed frontend build failure due to missing source files
+  - `install/install.sh`: Added frontend directory copy in Step 3
+  - Impact: Frontend installation now works from any source directory location
+
+- **User input handling**: Fixed confusing interactive prompts
+  - `install/scripts/setup-api.sh`: Removed `-n 1` flag from "Start API service" prompt
+  - `install/install.sh`: Added `echo` after server domain input for proper line spacing
+  - Impact: Users can now press Enter after input and prompts appear on separate lines
+
+#### Let's Encrypt SSL Certificate Support
+- **ACME challenge 404 errors**: Fixed Let's Encrypt certificate acquisition failures
+  - `install/scripts/setup-nginx.sh`: Changed from `--nginx` plugin to `--webroot` mode
+  - Added `.well-known/acme-challenge/` location to nginx configuration
+  - Ensured `/var/www/html` directory exists with proper permissions
+  - Impact: Let's Encrypt certificates can now be obtained successfully for real domains
+
+#### Logging Configuration
+- **Log path inconsistency**: Fixed hardcoded legacy log paths
+  - `cli/lib/security.sh`: Changed from `/opt/cachepilot/data/logs/security.log` to `${LOGS_DIR:-/var/log/cachepilot}/security.log`
+  - Impact: All logs consistently use `/var/log/cachepilot/` following FHS standard
+
+#### Code Quality
+- **Undefined variable**: Fixed CLI startup error
+  - `cli/cachepilot`: Removed reference to undefined `CONFIG_PATHS[templates_dir]`
+  - Impact: `cachepilot list` and other commands work without "unbound variable" errors
+
+### Technical Details
+
+All fixes maintain full backward compatibility while enforcing FHS compliance for new installations.
+
+---
+
 ## [2.1.0] - 2025-11-04
 
 ### Configuration Directory Migration to /etc/cachepilot

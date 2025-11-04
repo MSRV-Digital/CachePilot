@@ -47,6 +47,13 @@ fi
 
 echo -e "${GREEN}✓${NC} Frontend dist found"
 
+# Ensure /var/www/html exists for ACME challenges (create early, before nginx config)
+if [ ! -d "/var/www/html" ]; then
+    mkdir -p /var/www/html
+    chmod 755 /var/www/html
+    echo -e "${GREEN}✓${NC} Created /var/www/html for ACME challenges"
+fi
+
 # Get server configuration if not provided
 if [ -z "$SERVER_NAME" ]; then
     read -p "Enter server domain (or press Enter for localhost): " SERVER_NAME
@@ -80,6 +87,12 @@ server {
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
     add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http://localhost:8000 https://localhost:8000;" always;
+    
+    # Let's Encrypt ACME Challenge - Must be before SPA routing
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+        try_files \$uri =404;
+    }
     
     # Frontend - SPA routing
     location / {
@@ -188,6 +201,13 @@ if [[ "$ENABLE_SSL" =~ ^[Yy]$ ]]; then
     echo "Setting up Let's Encrypt SSL..."
     echo ""
     
+    # Ensure /var/www/html exists for ACME challenges
+    if [ ! -d "/var/www/html" ]; then
+        mkdir -p /var/www/html
+        chmod 755 /var/www/html
+        echo -e "${GREEN}✓${NC} Created /var/www/html for ACME challenges"
+    fi
+    
     # Check if certbot is installed
     if ! command -v certbot &> /dev/null; then
         echo "Installing certbot..."
@@ -270,6 +290,12 @@ server {
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
     add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http://localhost:8000 https://localhost:8000;" always;
+    
+    # Let's Encrypt ACME Challenge - Must be before SPA routing
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+        try_files $uri =404;
+    }
     
     # Frontend - SPA routing
     location / {
@@ -369,14 +395,142 @@ EOF_NGINX
         fi
     elif [ -n "$LE_EMAIL" ]; then
         echo "Running certbot with email: $LE_EMAIL"
-        if certbot --nginx -d "$SERVER_NAME" --non-interactive --agree-tos --email "$LE_EMAIL" --redirect; then
-            echo -e "${GREEN}✓${NC} SSL certificate obtained and configured!"
-            echo ""
-            echo "Certificate details:"
-            certbot certificates
-            echo ""
-            echo -e "${GREEN}Frontend now available at: https://$SERVER_NAME/${NC}"
-            echo -e "${GREEN}API now available at: https://$SERVER_NAME/api/${NC}"
+        echo "Using webroot mode to avoid nginx config conflicts..."
+        
+        # Use webroot mode instead of nginx mode to avoid conflicts with SPA routing
+        if certbot certonly --webroot -w /var/www/html -d "$SERVER_NAME" --non-interactive --agree-tos --email "$LE_EMAIL"; then
+            echo -e "${GREEN}✓${NC} SSL certificate obtained!"
+            
+            # Now manually configure nginx for SSL
+            CERT_PATH="/etc/letsencrypt/live/$SERVER_NAME/fullchain.pem"
+            KEY_PATH="/etc/letsencrypt/live/$SERVER_NAME/privkey.pem"
+            
+            cat > "$NGINX_SITE_AVAILABLE" << EOF
+# CachePilot nginx Configuration
+# Generated: $(date)
+# SSL Certificate from Let's Encrypt
+
+# HTTP Server - Redirect to HTTPS
+server {
+    listen 80;
+    server_name $SERVER_NAME;
+    
+    # Let's Encrypt ACME Challenge
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+        try_files \$uri =404;
+    }
+    
+    # Redirect all other traffic to HTTPS
+    location / {
+        return 301 https://\$server_name\$request_uri;
+    }
+}
+
+# HTTPS Server with Let's Encrypt Certificate
+server {
+    listen 443 ssl http2;
+    server_name $SERVER_NAME;
+    
+    # SSL Configuration - Let's Encrypt
+    ssl_certificate $CERT_PATH;
+    ssl_certificate_key $KEY_PATH;
+    
+    # SSL Security Settings
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+    
+    # Frontend root
+    root $FRONTEND_DIST;
+    index index.html;
+    
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http://localhost:8000 https://localhost:8000;" always;
+    
+    # Frontend - SPA routing
+    location / {
+        try_files \$uri \$uri/ /index.html;
+        
+        # Disable caching for index.html
+        location = /index.html {
+            add_header Cache-Control "no-cache, no-store, must-revalidate";
+            expires 0;
+        }
+    }
+    
+    # API Reverse Proxy
+    location /api/ {
+        proxy_pass http://localhost:8000;
+        proxy_http_version 1.1;
+        
+        # WebSocket support
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_cache_bypass \$http_upgrade;
+        
+        # Headers
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        
+        # Timeouts
+        proxy_connect_timeout 120s;
+        proxy_send_timeout 120s;
+        proxy_read_timeout 120s;
+    }
+    
+    # Static assets caching
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+    
+    # Enable gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied any;
+    gzip_types
+        text/plain
+        text/css
+        text/javascript
+        application/javascript
+        application/json
+        application/xml
+        application/xml+rss
+        image/svg+xml;
+    
+    # Logs
+    access_log /var/log/nginx/cachepilot-access.log;
+    error_log /var/log/nginx/cachepilot-error.log;
+}
+EOF
+            
+            # Test and reload nginx
+            if nginx -t 2>&1 | grep -q "successful"; then
+                systemctl reload nginx
+                echo -e "${GREEN}✓${NC} nginx configured with Let's Encrypt certificate"
+                echo ""
+                echo "Certificate details:"
+                certbot certificates
+                echo ""
+                echo -e "${GREEN}Frontend now available at: https://$SERVER_NAME/${NC}"
+                echo -e "${GREEN}API now available at: https://$SERVER_NAME/api/${NC}"
+            else
+                echo -e "${RED}✗${NC} nginx configuration test failed"
+                nginx -t
+            fi
         else
             echo -e "${YELLOW}⚠${NC} Let's Encrypt certificate failed."
             echo "Creating self-signed certificate as fallback..."
@@ -436,6 +590,12 @@ server {
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
     add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http://localhost:8000 https://localhost:8000;" always;
+    
+    # Let's Encrypt ACME Challenge - Must be before SPA routing
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+        try_files \$uri =404;
+    }
     
     # Frontend - SPA routing
     location / {

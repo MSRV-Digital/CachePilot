@@ -39,10 +39,13 @@ check_command() {
 # Check required dependencies
 echo "Required Dependencies:"
 check_command "docker" "true" "20.10"
-# Check docker compose separately
-if docker compose version &> /dev/null; then
+# Check docker compose (plugin or standalone)
+if docker compose version &> /dev/null 2>&1; then
     version=$(docker compose version 2>/dev/null | head -n 1 || echo "unknown")
     echo -e "${GREEN}✓${NC} docker compose found: $version"
+elif command -v docker-compose &> /dev/null; then
+    version=$(docker-compose version 2>/dev/null | head -n 1 || echo "unknown")
+    echo -e "${GREEN}✓${NC} docker-compose found: $version"
 else
     echo -e "${RED}✗${NC} docker compose not found (required)"
     MISSING_DEPS+=("docker-compose")
