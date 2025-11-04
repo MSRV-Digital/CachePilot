@@ -5,6 +5,15 @@ All notable changes to CachePilot will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **dpkg lock handling**: Installation scripts now only wait for actual dpkg locks, not background processes
+  - `install/scripts/install-deps.sh`: Optimized lock detection to check only lock files
+  - `install/scripts/setup-nginx.sh`: Optimized lock detection to check only lock files
+  - Impact: No more false positives from unattended-upgrades running in background
+  - Installation proceeds immediately when locks are not held
+
 ## [2.1.1] - 2025-11-04
 
 ### Fixed

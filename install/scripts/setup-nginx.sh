@@ -17,6 +17,81 @@ RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# Function to wait for apt/dpkg lock to be released
+wait_for_apt_lock() {
+    local max_wait=300  # 5 minutes maximum wait time
+    local waited=0
+    local check_interval=5
+    local shown_details=false
+    
+    # Only check for actual lock files, not just running processes
+    # This is more accurate - unattended-upgrades may run but not hold locks
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || \
+          fuser /var/lib/dpkg/lock >/dev/null 2>&1 || \
+          fuser /var/cache/apt/archives/lock >/dev/null 2>&1; do
+        
+        if [ $waited -eq 0 ]; then
+            echo -e "${YELLOW}⏳${NC} Waiting for other package management processes to complete..."
+            echo "  (This may be automatic system updates running in the background)"
+        fi
+        
+        # Show details after 10 seconds
+        if [ $waited -eq 10 ] && [ "$shown_details" = false ]; then
+            echo ""
+            echo "  Checking what's blocking..."
+            
+            # Check which locks are held
+            if fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; then
+                echo "  • Lock file: /var/lib/dpkg/lock-frontend"
+                fuser -v /var/lib/dpkg/lock-frontend 2>&1 | grep -v "USER" || true
+            fi
+            
+            # Check for running processes
+            local blocking_procs=""
+            pgrep -x unattended-upgr >/dev/null 2>&1 && blocking_procs="${blocking_procs}unattended-upgrades "
+            pgrep -x apt >/dev/null 2>&1 && blocking_procs="${blocking_procs}apt "
+            pgrep -x apt-get >/dev/null 2>&1 && blocking_procs="${blocking_procs}apt-get "
+            pgrep -x dpkg >/dev/null 2>&1 && blocking_procs="${blocking_procs}dpkg "
+            
+            if [ -n "$blocking_procs" ]; then
+                echo "  • Blocking processes: $blocking_procs"
+            fi
+            echo ""
+            shown_details=true
+        fi
+        
+        if [ $waited -ge $max_wait ]; then
+            echo -e "${RED}✗${NC} Timeout waiting for package management lock (waited ${max_wait}s)"
+            echo ""
+            echo "Blocking processes still active:"
+            ps aux | grep -E 'apt|dpkg|unattended' | grep -v grep || echo "  (none visible)"
+            echo ""
+            echo "You can try one of these options:"
+            echo "  1. Wait longer and run the script again"
+            echo "  2. Kill the blocking process manually:"
+            echo "     sudo killall apt apt-get dpkg unattended-upgr"
+            echo "     sudo rm /var/lib/dpkg/lock-frontend"
+            echo "     sudo rm /var/lib/dpkg/lock"
+            echo "     sudo dpkg --configure -a"
+            return 1
+        fi
+        
+        sleep $check_interval
+        waited=$((waited + check_interval))
+        
+        # Show progress every 30 seconds
+        if [ $((waited % 30)) -eq 0 ]; then
+            echo "  Still waiting... (${waited}s elapsed)"
+        fi
+    done
+    
+    if [ $waited -gt 0 ]; then
+        echo -e "${GREEN}✓${NC} Package management lock released (waited ${waited}s)"
+    fi
+    
+    return 0
+}
+
 echo "Setting up nginx reverse proxy..."
 
 # Base directory
@@ -32,6 +107,13 @@ ENABLE_SSL="${2:-}"
 # Check if nginx is installed
 if ! command -v nginx &> /dev/null; then
     echo -e "${YELLOW}nginx not found. Installing...${NC}"
+    
+    # Wait for any existing apt/dpkg processes to complete
+    if ! wait_for_apt_lock; then
+        echo -e "${RED}✗${NC} Cannot proceed with nginx installation"
+        exit 1
+    fi
+    
     apt-get update -qq
     apt-get install -y nginx
     echo -e "${GREEN}✓${NC} nginx installed"
@@ -211,6 +293,17 @@ if [[ "$ENABLE_SSL" =~ ^[Yy]$ ]]; then
     # Check if certbot is installed
     if ! command -v certbot &> /dev/null; then
         echo "Installing certbot..."
+        
+        # Wait for any existing apt/dpkg processes to complete
+        if ! wait_for_apt_lock; then
+            echo -e "${RED}✗${NC} Cannot proceed with certbot installation"
+            echo "You can install certbot manually later:"
+            echo "  sudo apt-get update && sudo apt-get install -y certbot python3-certbot-nginx"
+            echo ""
+            echo "Continuing with HTTP-only configuration..."
+            return 0
+        fi
+        
         apt-get update -qq
         apt-get install -y certbot python3-certbot-nginx
         echo -e "${GREEN}✓${NC} certbot installed"
