@@ -1,0 +1,135 @@
+#
+# CachePilot - Logging Configuration
+#
+# Structured logging configuration including audit trails, metric collection,
+# output destinations, and sanitization rules.
+#
+# Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
+# Company: MSRV Digital
+# Version: 2.1.0-beta
+# License: MIT
+#
+# Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
+#
+
+# Global logging settings
+logging:
+  # Log level: DEBUG, INFO, WARN, ERROR
+  default_level: INFO
+  
+  # Enable JSON-formatted logs
+  json_format: true
+  
+  # Enable colored output for console (when not in JSON mode)
+  colored_console: true
+  
+  # Timestamp format (ISO 8601)
+  timestamp_format: "%Y-%m-%dT%H:%M:%S%z"
+
+# Output destinations
+outputs:
+  # Console output (stdout/stderr)
+  console:
+    enabled: true
+    level: INFO
+    json_format: false  # Human-readable for console
+    
+  # File output (FHS-compliant - /var/log for application logs)
+  file:
+    enabled: true
+    level: DEBUG
+    json_format: true
+    path: /var/log/cachepilot/cachepilot.log
+    
+  # Audit log (immutable audit trail)
+  audit:
+    enabled: true
+    path: /var/log/cachepilot/audit.log
+    json_format: true
+    
+  # Metrics log (performance metrics)
+  metrics:
+    enabled: true
+    path: /var/log/cachepilot/metrics.log
+    json_format: true
+    
+  # Remote syslog (optional)
+  syslog:
+    enabled: false
+    host: localhost
+    port: 514
+    protocol: udp  # udp or tcp
+    facility: local0
+
+# Log rotation settings
+rotation:
+  enabled: true
+  max_size_mb: 100
+  max_files: 10
+  compress: true
+  
+# Component-specific log levels
+components:
+  tenant: INFO
+  docker: INFO
+  monitoring: INFO
+  certificates: INFO
+  backup: INFO
+  api: INFO
+  nginx: INFO
+  redisinsight: INFO
+  
+# Audit logging configuration
+audit:
+  # Operations that must be audited
+  tracked_operations:
+    - tenant_create
+    - tenant_delete
+    - tenant_modify
+    - password_rotate
+    - certificate_generate
+    - backup_create
+    - backup_restore
+    - config_change
+    - api_key_create
+    - api_key_revoke
+    
+  # Include sensitive data in audit logs (be careful!)
+  include_sensitive: false
+  
+  # Require user/API key for all audited operations
+  require_identity: true
+
+# Metric collection settings
+metrics:
+  # Enable metric collection
+  enabled: true
+  
+  # Metrics collection interval (seconds)
+  interval: 60
+  
+  # Metrics to collect
+  collect:
+    - memory_usage
+    - cpu_usage
+    - disk_usage
+    - client_connections
+    - key_count
+    - command_stats
+    - replication_lag
+    
+# Sanitization rules (prevent sensitive data leakage)
+sanitization:
+  # Patterns to redact from logs
+  redact_patterns:
+    - password
+    - secret
+    - token
+    - key
+    - credential
+    
+  # Replace redacted content with
+  replacement: "[REDACTED]"
+  
+  # Sanitize audit logs as well
+  sanitize_audit: true

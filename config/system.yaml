@@ -1,0 +1,107 @@
+#
+# CachePilot - System Configuration
+#
+# Main configuration file for CachePilot multi-tenant Redis management system.
+# Defines paths, network settings, defaults, and security parameters.
+#
+# Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
+# Company: MSRV Digital
+# Version: 2.1.0-beta
+# License: MIT
+#
+# Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
+#
+
+# Base installation paths
+# Following Linux Filesystem Hierarchy Standard (FHS) for better system integration
+paths:
+  # Application code and scripts (unchanged - /opt is standard for add-on software)
+  base_dir: /opt/cachepilot
+  cli_dir: /opt/cachepilot/cli
+  api_dir: /opt/cachepilot/api
+  frontend_dir: /opt/cachepilot/frontend
+  config_dir: /etc/cachepilot
+  scripts_dir: /opt/cachepilot/scripts
+  
+  # Variable data directories (FHS-compliant - /var for variable application data)
+  # These directories contain data that changes during operation
+  tenants_dir: /var/cachepilot/tenants      # Tenant-specific data and configurations
+  ca_dir: /var/cachepilot/ca                # Certificate Authority and TLS certificates
+  backups_dir: /var/cachepilot/backups      # Backup archives
+  
+  # Log directories (FHS-compliant - /var/log for application logs)
+  # Centralized logging location for easier log management and monitoring
+  logs_dir: /var/log/cachepilot             # All application logs
+  
+  # Note: All paths can be overridden via environment variables
+  # Example: export TENANTS_DIR=/custom/path/tenants
+
+# Network configuration
+# IMPORTANT: Configure these values for your deployment
+network:
+  internal_ip: 192.168.1.100   # Internal server IP address
+  public_ip: 203.0.113.10      # Public-facing IP address or domain
+  redis_port_start: 7300
+  redis_port_end: 7399
+  insight_port_start: 8300
+  insight_port_end: 8399
+
+# Default resource limits
+defaults:
+  redis_memory_mb: 256
+  docker_memory_mb: 512
+
+# Organization information
+# Configure these values for handover packages and documentation
+organization:
+  name: "Your Organization"
+  contact_name: "Administrator"
+  contact_email: "admin@example.com"
+  contact_phone: "not-configured"
+  contact_web: "https://example.com"
+
+# TLS Certificate settings
+certificates:
+  country: "DE"
+  state: "Bavaria"
+  city: "Munich"
+  validity_days: 1095
+
+# Monitoring and health check settings
+monitoring:
+  health_check_interval: 300
+  alert_retention_days: 30
+  metrics_retention_days: 90
+
+# Backup settings
+backup:
+  retention_days: 30
+  compression: true
+  verify_after_backup: true
+
+# Security settings
+security:
+  # File permissions for sensitive files (certificates, keys, configs)
+  sensitive_file_permissions: "600"  # Owner read/write only
+  sensitive_dir_permissions: "700"   # Owner full access only
+  
+  # Audit logging
+  audit_log_enabled: true
+  audit_log_file: /var/log/cachepilot/security.log  # Updated to FHS-compliant path
+  audit_log_retention_days: 90
+  
+  # Password generation
+  password_min_length: 32
+  password_complexity: true  # Requires uppercase, lowercase, numbers, special chars
+  
+  # Command execution
+  command_timeout_seconds: 30
+  command_whitelist_enabled: true
+  
+  # File path validation
+  path_traversal_protection: true
+  allowed_base_directories:
+    - /opt/cachepilot
+    - /etc/cachepilot
+    - /var/cachepilot
+    - /var/log/cachepilot

@@ -1,0 +1,388 @@
+#!/usr/bin/env bash
+#
+# CachePilot - Multi-Tenant Redis Management System
+#
+# Main CLI interface for managing isolated Redis instances with TLS encryption,
+# resource limits, monitoring, and optional RedisInsight.
+#
+# Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
+# Company: MSRV Digital
+# Version: 2.1.0-beta
+# License: MIT
+# Repository: https://github.com/MSRV-Digital/CachePilot
+#
+# Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
+#
+
+set -euo pipefail
+
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+while [ -L "$SCRIPT_PATH" ]; do
+    SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+    SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
+    [[ $SCRIPT_PATH != /* ]] && SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_PATH"
+done
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+BASE_DIR="$(dirname "$SCRIPT_DIR")"
+CACHEPILOT_DIR="${BASE_DIR}"
+CONFIG_FILE="${BASE_DIR}/config/system.yaml"
+LIB_DIR="${SCRIPT_DIR}/lib"
+
+export CACHEPILOT_DIR
+export BASE_DIR
+export CONFIG_FILE
+
+VERSION="2.1.0-beta"
+
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo "[ERROR] Configuration file not found: $CONFIG_FILE"
+    exit 1
+fi
+
+source "${LIB_DIR}/common.sh"
+source "${LIB_DIR}/validator.sh"
+source "${LIB_DIR}/security.sh"
+source "${LIB_DIR}/docker.sh"
+source "${LIB_DIR}/certs.sh"
+source "${LIB_DIR}/tenant.sh"
+source "${LIB_DIR}/alerts.sh"
+source "${LIB_DIR}/health.sh"
+source "${LIB_DIR}/monitoring.sh"
+source "${LIB_DIR}/handover.sh"
+source "${LIB_DIR}/nginx.sh"
+source "${LIB_DIR}/redisinsight.sh"
+source "${LIB_DIR}/backup.sh"
+source "${LIB_DIR}/api.sh"
+
+TENANTS_DIR="${CONFIG_PATHS[tenants_dir]}"
+CA_DIR="${CONFIG_PATHS[ca_dir]}"
+TEMPLATES_DIR="${CONFIG_PATHS[templates_dir]}"
+
+show_version() {
+    cat << EOF
+CachePilot v${VERSION}
+
+Multi-Tenant Redis Management System
+
+Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
+Company: MSRV Digital
+License: MIT
+Repository: https://github.com/MSRV-Digital/CachePilot
+
+Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
+EOF
+}
+
+show_usage() {
+    cat << EOF
+CachePilot - Multi-Tenant Redis Management System v${VERSION}
+
+Usage: cachepilot <command> [arguments]
+
+Tenant Management:
+  new <tenant>                    Create new Redis instance
+  rm <tenant>                     Remove instance and all data
+  start <tenant>                  Start instance
+  stop <tenant>                   Stop instance
+  restart <tenant>                Restart instance
+
+Monitoring & Statistics:
+  status <tenant>                 Show instance status and statistics
+  list                            List all instances with statistics
+  stats                           Show global statistics and top consumers
+  logs <tenant> [lines]           Show container logs
+  health                          Check system health status
+  alerts                          List active alerts
+
+Configuration:
+  set-mem <tenant> <max> <hard>   Set memory limits (MB)
+  rotate <tenant>                 Rotate password and regenerate handover
+
+Maintenance:
+  update all                      Rolling update of all instances
+  renew-certs all                 Renew expiring certificates
+  check-certs                     Check certificate expiration dates
+
+Backup & Restore:
+  backup <tenant>                 Create manual backup
+  restore <tenant> <file>         Restore from backup file
+  list-backups <tenant>           List available backups
+  verify-backup <file>            Verify backup integrity
+  backup-enable <tenant>          Enable auto backup (daily)
+  backup-disable <tenant>         Disable auto backup
+  backup-status                   Show backup status overview
+  backup-enable-all               Enable backups for all tenants
+
+RedisInsight:
+  insight-enable <tenant>         Enable RedisInsight web interface
+  insight-disable <tenant>        Disable RedisInsight
+  insight-status <tenant>         Show RedisInsight status and credentials
+
+Handover:
+  handover <tenant>               Regenerate handover package for customer
+
+API Management:
+  api start                       Start REST API service
+  api stop                        Stop REST API service
+  api restart                     Restart REST API service
+  api status                      Show API service status and URL
+  api logs [lines]                Show API service logs
+  api key generate <name>         Generate new API key
+  api key list                    List all API keys
+  api key revoke <name>           Revoke an API key
+
+Examples:
+  cachepilot new myclient          Create new Redis instance for 'myclient'
+  cachepilot set-mem myclient 512 1024
+                                  Set Redis limit to 512MB, Docker to 1024MB
+  cachepilot insight-enable myclient
+                                  Enable RedisInsight for 'myclient'
+  cachepilot stats                 Show global statistics
+
+For more information, visit: https://github.com/MSRV-Digital/CachePilot
+EOF
+}
+
+main() {
+    if [[ $# -eq 0 ]]; then
+        show_usage
+        exit 0
+    fi
+    
+    local command="$1"
+    shift
+    
+    case "$command" in
+        --version|-v)
+            show_version
+            exit 0
+            ;;
+        --help|-h)
+            show_usage
+            exit 0
+            ;;
+        new)
+            [[ $# -lt 1 ]] && error "Usage: cachepilot new <tenant>"
+            create_tenant "$1"
+            ;;
+        status)
+            [[ $# -lt 1 ]] && error "Usage: cachepilot status <tenant>"
+            show_tenant_status "$1"
+            ;;
+        list)
+            list_all_tenants
+            ;;
+        stats)
+            if [[ "$(type -t show_global_stats_json)" != "function" ]]; then
+                echo "Error: show_global_stats_json function not available" >&2
+                exit 1
+            fi
+            
+            if [[ "${1:-}" == "--json" ]]; then
+                show_global_stats_json
+            else
+                show_global_stats
+            fi
+            ;;
+        set-mem)
+            [[ $# -lt 3 ]] && error "Usage: cachepilot set-mem <tenant> <maxmemory_mb> <docker_limit_mb>"
+            set_memory_limits "$1" "$2" "$3"
+            ;;
+        rotate)
+            [[ $# -lt 1 ]] && error "Usage: cachepilot rotate <tenant>"
+            rotate_password "$1"
+            ;;
+        update)
+            [[ $# -lt 1 ]] && error "Usage: cachepilot update all"
+            [[ "$1" != "all" ]] && error "Only 'update all' is supported"
+            update_all_instances
+            ;;
+        renew-certs)
+            [[ $# -lt 1 ]] && error "Usage: cachepilot renew-certs all"
+            [[ "$1" != "all" ]] && error "Only 'renew-certs all' is supported"
+            renew_expiring_certs
+            ;;
+        check-certs)
+            check_all_certs
+            ;;
+        start)
+            [[ $# -lt 1 ]] && error "Usage: cachepilot start <tenant>"
+            start_tenant "$1"
+            ;;
+        stop)
+            [[ $# -lt 1 ]] && error "Usage: cachepilot stop <tenant>"
+            stop_tenant "$1"
+            ;;
+        restart)
+            [[ $# -lt 1 ]] && error "Usage: cachepilot restart <tenant>"
+            restart_tenant "$1"
+            ;;
+        rm)
+            [[ $# -lt 1 ]] && error "Usage: cachepilot rm <tenant> [--force]"
+            remove_tenant "$@"
+            ;;
+        handover)
+            [[ $# -lt 1 ]] && error "Usage: cachepilot handover <tenant>"
+            generate_handover "$1"
+            ;;
+        logs)
+            [[ $# -lt 1 ]] && error "Usage: cachepilot logs <tenant> [lines]"
+            local lines="${2:-50}"
+            show_logs "$1" "$lines"
+            ;;
+        backup)
+            [[ $# -lt 1 ]] && error "Usage: cachepilot backup <tenant>"
+            backup_init
+            if backup_create "$1" "manual"; then
+                success "Backup created successfully for $1"
+                backup_list "$1"
+            else
+                error "Backup failed for $1"
+            fi
+            ;;
+        restore)
+            [[ $# -lt 2 ]] && error "Usage: cachepilot restore <tenant> <backup_file>"
+            backup_init
+            warn "This will overwrite current data for $1"
+            read -p "Continue? [y/N]: " confirm
+            if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                if backup_restore "$1" "$2"; then
+                    success "Restore completed for $1"
+                    restart_tenant "$1"
+                else
+                    error "Restore failed for $1"
+                fi
+            else
+                log_info "cli" "Restore cancelled by user" "$1"
+            fi
+            ;;
+        list-backups)
+            [[ $# -lt 1 ]] && error "Usage: cachepilot list-backups <tenant>"
+            backup_init
+            log_info "cli" "Listing backups" "$1"
+            backup_list "$1"
+            ;;
+        verify-backup)
+            [[ $# -lt 1 ]] && error "Usage: cachepilot verify-backup <file>"
+            backup_init
+            if backup_verify "$1"; then
+                success "Backup verified: $1"
+            else
+                error "Backup verification failed: $1"
+            fi
+            ;;
+        backup-enable)
+            [[ $# -lt 1 ]] && error "Usage: cachepilot backup-enable <tenant>"
+            backup_init
+            if backup_schedule_enable "$1" "daily"; then
+                success "Auto backup enabled for $1"
+            else
+                error "Failed to enable auto backup for $1"
+            fi
+            ;;
+        backup-disable)
+            [[ $# -lt 1 ]] && error "Usage: cachepilot backup-disable <tenant>"
+            backup_init
+            if backup_schedule_disable "$1"; then
+                success "Auto backup disabled for $1"
+            else
+                error "Failed to disable auto backup for $1"
+            fi
+            ;;
+        backup-status)
+            backup_init
+            echo ""
+            backup_status_overview
+            echo ""
+            ;;
+        backup-enable-all)
+            backup_init
+            backup_enable_all
+            ;;
+        insight-enable)
+            [[ $# -lt 1 ]] && error "Usage: cachepilot insight-enable <tenant>"
+            enable_redisinsight "$1"
+            ;;
+        insight-disable)
+            [[ $# -lt 1 ]] && error "Usage: cachepilot insight-disable <tenant>"
+            disable_redisinsight "$1"
+            ;;
+        insight-status)
+            [[ $# -lt 1 ]] && error "Usage: cachepilot insight-status <tenant>"
+            show_redisinsight_status "$1"
+            ;;
+        health)
+            health_init > /dev/null 2>&1
+            local health_json=$(health_check_system 2>/dev/null)
+            
+            if [[ "${1:-}" == "--json" ]]; then
+                echo "$health_json"
+            else
+                echo ""
+                echo "=========================================="
+                echo "System Health Status"
+                echo "=========================================="
+                echo ""
+                
+                local status=$(echo "$health_json" | jq -r '.status' 2>/dev/null | tr -d '\n' || echo "unknown")
+                local total_tenants=$(echo "$health_json" | jq -r '.total_tenants' 2>/dev/null | tr -d '\n' || echo "0")
+                local running_tenants=$(echo "$health_json" | jq -r '.running_tenants' 2>/dev/null | tr -d '\n' || echo "0")
+                
+                case "$status" in
+                    "healthy")
+                        echo "Overall Status: ${GREEN}HEALTHY${NC}"
+                        ;;
+                    "degraded")
+                        echo "Overall Status: ${YELLOW}DEGRADED${NC}"
+                        ;;
+                    "unhealthy")
+                        echo "Overall Status: ${RED}UNHEALTHY${NC}"
+                        ;;
+                    *)
+                        echo "Overall Status: UNKNOWN"
+                        ;;
+                esac
+                echo ""
+                
+                echo "Services:"
+                local docker_status=$(echo "$health_json" | jq -r '.services.docker' 2>/dev/null | tr -d '\n' || echo "unknown")
+                local disk_status=$(echo "$health_json" | jq -r '.services.disk_space' 2>/dev/null | tr -d '\n' || echo "unknown")
+                local cert_status=$(echo "$health_json" | jq -r '.services.certificates' 2>/dev/null | tr -d '\n' || echo "unknown")
+                
+                echo "  Docker:        $docker_status"
+                echo "  Disk Space:    $disk_status"
+                echo "  Certificates:  $cert_status"
+                echo ""
+                
+                echo "Tenants:"
+                echo "  Total:    $total_tenants"
+                echo "  Running:  $running_tenants"
+                echo ""
+                
+                local issues_count=$(echo "$health_json" | jq -r '.issues | length' 2>/dev/null || echo "0")
+                if [ "$issues_count" -gt 0 ]; then
+                    echo "Issues Found:"
+                    echo "$health_json" | jq -r '.issues[]' 2>/dev/null | while read -r issue; do
+                        echo "  - $issue"
+                    done
+                    echo ""
+                fi
+            fi
+            ;;
+        alerts)
+            alert_init
+            alert_list
+            ;;
+        api)
+            [[ $# -lt 1 ]] && error "Usage: cachepilot api <start|stop|restart|status|logs|key>"
+            api_command "$@"
+            ;;
+        *)
+            error "Unknown command: $command"
+            show_usage
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

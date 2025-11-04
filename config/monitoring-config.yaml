@@ -1,0 +1,221 @@
+#
+# CachePilot - Monitoring Configuration
+#
+# Health checks, alerts, thresholds, notifications, and metric collection settings.
+#
+# Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
+# Company: MSRV Digital
+# Version: 2.1.0-beta
+# License: MIT
+#
+# Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
+#
+
+# Health Check Settings
+health_checks:
+  # System-level health check interval (seconds)
+  system_check_interval: 300
+  
+  # Tenant-level health check interval (seconds)
+  tenant_check_interval: 60
+  
+  # Enable automatic health checks
+  auto_health_checks: true
+
+# Disk Space Thresholds
+disk_space:
+  # Warning threshold (percentage)
+  warning_percent: 80
+  
+  # Critical threshold (percentage)
+  critical_percent: 90
+
+# Certificate Expiry Thresholds
+certificates:
+  # Warning threshold (days before expiry)
+  warning_days: 30
+  
+  # Critical threshold (days before expiry)
+  critical_days: 7
+  
+  # Auto-renewal enabled
+  auto_renew: false
+
+# Memory Usage Thresholds
+memory:
+  # Warning threshold (percentage of maxmemory)
+  warning_percent: 85
+  
+  # Critical threshold (percentage of maxmemory)
+  critical_percent: 95
+
+# Redis Connection Thresholds
+redis:
+  # Maximum number of connected clients (warning)
+  max_clients_warning: 900
+  
+  # Maximum number of connected clients (critical)
+  max_clients_critical: 950
+  
+  # Connection timeout (seconds)
+  connection_timeout: 5
+
+# Alert Settings
+alerts:
+  # Enable alert system
+  enabled: true
+  
+  # Alert retention period (days)
+  retention_days: 30
+  
+  # Auto-resolve alerts after (hours, 0 = never)
+  auto_resolve_hours: 0
+  
+  # Rate limiting (maximum alerts per hour)
+  rate_limit: 100
+
+# Email Notification Settings
+email:
+  # Enable email notifications
+  enabled: false
+  
+  # SMTP server (leave empty to use local mail command)
+  smtp_server: ""
+  
+  # SMTP port
+  smtp_port: 25
+  
+  # SMTP username (if authentication required)
+  smtp_username: ""
+  
+  # SMTP password (if authentication required)
+  smtp_password: ""
+  
+  # Use TLS
+  smtp_tls: false
+  
+  # From address
+  from: "cachepilot@localhost"
+  
+  # To address (comma-separated for multiple recipients)
+  to: ""
+  
+  # Severity levels to notify (info, warning, critical)
+  notify_on:
+    - warning
+    - critical
+
+# Webhook Notification Settings
+webhook:
+  # Enable webhook notifications
+  enabled: false
+  
+  # Webhook URL
+  url: ""
+  
+  # HTTP method (POST, PUT)
+  method: "POST"
+  
+  # Custom headers (key: value pairs)
+  headers:
+    Content-Type: "application/json"
+  
+  # Timeout (seconds)
+  timeout: 10
+  
+  # Retry attempts on failure
+  retry_attempts: 3
+  
+  # Severity levels to notify (info, warning, critical)
+  notify_on:
+    - warning
+    - critical
+
+# Metric Collection Settings
+metrics:
+  # Enable metric collection
+  enabled: true
+  
+  # Metric collection interval (seconds)
+  collection_interval: 60
+  
+  # Metric retention period (days)
+  retention_days: 7
+  
+  # Metrics to collect per tenant
+  tenant_metrics:
+    - memory_used
+    - memory_peak
+    - connected_clients
+    - total_commands_processed
+    - keyspace_hits
+    - keyspace_misses
+    - evicted_keys
+    - expired_keys
+  
+  # System metrics to collect
+  system_metrics:
+    - total_tenants
+    - running_tenants
+    - total_memory_used
+    - disk_usage_percent
+    - cpu_usage_percent
+
+# Log Settings for Monitoring
+logging:
+  # Log level for monitoring operations (DEBUG, INFO, WARN, ERROR)
+  level: "INFO"
+  
+  # Log health check results
+  log_health_checks: true
+  
+  # Log metric collection
+  log_metrics: false
+  
+  # Log alert creation
+  log_alerts: true
+
+# Maintenance Settings
+maintenance:
+  # Enable automatic maintenance tasks
+  enabled: true
+  
+  # Cleanup old alerts (days)
+  cleanup_alerts_days: 30
+  
+  # Cleanup old metrics (days)
+  cleanup_metrics_days: 7
+  
+  # Cleanup old logs (days)
+  cleanup_logs_days: 14
+  
+  # Verify backups
+  verify_backups: true
+
+# Performance Monitoring
+performance:
+  # Enable performance monitoring
+  enabled: true
+  
+  # Track slow commands (milliseconds threshold)
+  slow_command_threshold: 100
+  
+  # Maximum slow log entries per tenant
+  max_slow_log_entries: 100
+
+# Custom Alert Rules
+# Define custom rules for specific scenarios
+custom_rules:
+  # Example: Alert on high eviction rate
+  - name: "high_eviction_rate"
+    condition: "evicted_keys_per_second > 10"
+    severity: "warning"
+    message: "High key eviction rate detected"
+    enabled: false
+  
+  # Example: Alert on low hit rate
+  - name: "low_cache_hit_rate"
+    condition: "hit_rate < 0.8"
+    severity: "warning"
+    message: "Cache hit rate below 80%"
+    enabled: false

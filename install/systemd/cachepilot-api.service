@@ -1,0 +1,26 @@
+[Unit]
+Description=CachePilot API Service
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/cachepilot
+Environment="PATH=/opt/cachepilot/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="TENANTS_DIR=/var/cachepilot/tenants"
+Environment="CA_DIR=/var/cachepilot/ca"
+Environment="BACKUPS_DIR=/var/cachepilot/backups"
+Environment="LOGS_DIR=/var/log/cachepilot"
+ExecStart=/opt/cachepilot/venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8000 --log-level info
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Ensure service can access /var directories
+ReadWritePaths=/var/cachepilot
+ReadWritePaths=/var/log/cachepilot
+
+[Install]
+WantedBy=multi-user.target

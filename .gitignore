@@ -1,0 +1,145 @@
+# Redis Manager - Git Ignore File v2.0
+
+# ===================================
+# Secrets & API Keys
+# ===================================
+config/api-keys.json
+*.pem
+*.key
+*.csr
+.env
+.env.local
+.env.production.local
+.env.development.local
+
+# ===================================
+# Data Directory (v2.0 Structure)
+# ===================================
+data/tenants/*/
+!data/tenants/.gitkeep
+data/backups/
+data/logs/
+data/ca/
+!data/ca/.gitkeep
+
+# Legacy paths (pre-v2.0)
+tenants/*/
+!tenants/.gitkeep
+backups/
+logs/
+ca/
+!ca/.gitkeep
+
+# Backup files
+*.tar.gz
+*.zip
+*.backup
+
+# Log files
+*.log
+*.jsonl
+
+# ===================================
+# Python
+# ===================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+*.egg-info/
+dist-py/
+build/
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Python virtual environments in project root
+/venv/
+
+# ===================================
+# Frontend / Node.js
+# ===================================
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/dist-ssr/
+*.local
+
+# Dependency directories
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Frontend build artifacts
+frontend/coverage/
+frontend/.nyc_output/
+
+# ===================================
+# IDE & Editors
+# ===================================
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+.fleet/
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+
+# ===================================
+# OS
+# ===================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ===================================
+# Temporary & Cache Files
+# ===================================
+*.tmp
+*.bak
+*.backup
+*.cache
+.sass-cache/
+.npm/
+.yarn/
+.pnp.*
+
+# ===================================
+# Redis Manager Specific
+# ===================================
+# RedisInsight data
+*/redisinsight-data/
+
+# Docker overrides
+docker-compose.override.yml
+
+# Test files
+test-*.sh
+*.test
+test-output/
+
+# Development & debug
+debug.log
+*.pid
+
+# Handover packages
+data/tenants/*/handover/*.zip

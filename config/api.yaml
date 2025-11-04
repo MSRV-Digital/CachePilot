@@ -1,0 +1,56 @@
+#
+# CachePilot - API Configuration
+#
+# REST API server configuration including security, CORS, paths, and logging.
+#
+# Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
+# Company: MSRV Digital
+# Version: 2.1.0-beta
+# License: MIT
+#
+# Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
+#
+
+# API server settings
+server:
+  host: 0.0.0.0
+  port: 8000
+  workers: 4
+  reload: false
+
+# Security settings
+security:
+  api_key_file: /etc/cachepilot/api-keys.json
+  rate_limit_requests: 100
+  rate_limit_window: 60  # seconds
+  
+  # CORS Configuration
+  # IMPORTANT: Configure this to match your deployment domain(s)
+  # Using wildcard ["*"] is INSECURE and should only be used for local development
+  # Production deployments MUST specify exact origins
+  cors_origins: []
+    # Examples - replace with your actual domain(s):
+    # - "https://redis-manager.yourdomain.com"
+    # - "https://admin.yourdomain.com"
+    # For local development only:
+    # - "https://redis01.msrv.io:5173"
+    # - "https://redis01.msrv.io:3000"
+
+# Path configuration
+paths:
+  redis_mgr_cli: /opt/cachepilot/cli/cachepilot
+  base_dir: /opt/cachepilot
+  config_dir: /etc/cachepilot
+  logs_dir: /var/log/cachepilot
+
+# Logging configuration
+logging:
+  level: INFO
+  access_log: true
+  error_log: /var/log/cachepilot/api-error.log
+  access_log_file: /var/log/cachepilot/api-access.log
+
+# Environment
+environment:
+  type: production  # production or development
+  debug: false  # Set to true only for development (enables detailed error messages)

@@ -1,0 +1,47 @@
+#
+# CachePilot - Frontend Configuration
+#
+# Web frontend configuration including API connection, theme, and feature flags.
+#
+# Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
+# Company: MSRV Digital
+# Version: 2.1.0-beta
+# License: MIT
+#
+# Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
+#
+
+# API connection settings
+# When using nginx reverse proxy, use relative path /api
+# For direct API access, use http://localhost:8000
+api:
+  base_url: /api
+  timeout: 30000  # milliseconds
+  retry_attempts: 3
+
+# Application settings
+app:
+  title: "CachePilot"
+  refresh_interval: 5000  # milliseconds
+  max_tenants_display: 100
+  date_format: "yyyy-MM-dd HH:mm:ss"
+
+# Theme configuration
+theme:
+  primary_color: "#3B82F6"
+  secondary_color: "#10B981"
+  danger_color: "#EF4444"
+  warning_color: "#F59E0B"
+  dark_mode: false
+
+# Feature flags
+features:
+  auto_refresh: true
+  show_metrics: true
+  enable_notifications: true
+  show_advanced_options: false
+
+# Pagination and limits
+pagination:
+  default_page_size: 20
+  max_page_size: 100
