@@ -251,7 +251,7 @@ API Management:
 
 ## REST API
 
-CachePilot includes a REST API for programmatic access to management operations.
+CachePilot includes an optional REST API for programmatic access to management operations.
 
 ### Quick Start
 
@@ -260,7 +260,7 @@ The API is installed by default during system installation. If you skipped it:
 1. Install the API:
    ```bash
    cd /opt/cachepilot
-   ./api/install-api.sh
+   sudo ./install/scripts/setup-api.sh
    ```
 
 2. The API service starts automatically. To manage it:
@@ -272,8 +272,7 @@ The API is installed by default during system installation. If you skipped it:
 
 3. Generate additional API keys:
    ```bash
-   cd /opt/cachepilot
-   ./api/generate-key.sh username
+   cachepilot api key generate username
    ```
 
 4. Access the interactive documentation:
@@ -297,6 +296,49 @@ curl -H "X-API-Key: your-key" http://localhost:8000/api/v1/monitoring/health
 ```
 
 For complete API documentation, see [docs/API.md](docs/API.md).
+
+## Web Frontend
+
+CachePilot includes an optional React-based web frontend for visual management and monitoring.
+
+### Quick Start
+
+The frontend is installed by default during system installation. If you skipped it:
+
+**Prerequisites:**
+- Node.js 18+ and npm must be installed
+- nginx web server (installed automatically)
+
+**Installation Steps:**
+
+1. Build the frontend:
+   ```bash
+   cd /opt/cachepilot
+   sudo ./install/scripts/setup-frontend.sh
+   ```
+
+2. Configure nginx reverse proxy:
+   ```bash
+   cd /opt/cachepilot
+   sudo ./install/scripts/setup-nginx.sh your-domain.com
+   ```
+   
+   Replace `your-domain.com` with your server's domain or IP address.
+
+3. Access the frontend:
+   - Local: http://localhost/
+   - Production: http://your-domain.com/
+
+The frontend provides:
+- Visual dashboard for tenant management
+- Real-time monitoring and statistics
+- Health status overview
+- Backup management interface
+- Integration with the REST API
+
+**Note:** The frontend requires the REST API to be installed and running. See the REST API section above for installation instructions.
+
+For detailed frontend documentation, see [docs/FRONTEND.md](docs/FRONTEND.md).
 
 ## Architecture
 
