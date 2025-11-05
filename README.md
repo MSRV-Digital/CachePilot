@@ -6,6 +6,8 @@ CachePilot is a suite of Bash scripts for administering multi-tenant Redis envir
 
 This project is designed for hosting providers, agencies, and developers who need to manage Redis services for multiple clients or projects on a single server.
 
+---
+
 **Author:** Patrick Schlesinger, MSRV Digital  
 **Version:** 2.1.0-beta  
 **Status:** Beta - Active Development  
