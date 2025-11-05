@@ -1,5 +1,11 @@
 # CachePilot
 
+A production-ready system for managing isolated Redis instances with TLS encryption, resource limits, monitoring, and optional RedisInsight.
+
+CachePilot is a suite of Bash scripts for administering multi-tenant Redis environments. It uses Docker for tenant isolation, automates certificate management with a local CA, and provides a command-line interface for management tasks.
+
+This project is designed for hosting providers, agencies, and developers who need to manage Redis services for multiple clients or projects on a single server.
+
 **Author:** Patrick Schlesinger, MSRV Digital  
 **Version:** 2.1.0-beta  
 **Status:** Beta - Active Development  
@@ -44,12 +50,6 @@ CachePilot makes significant system modifications including:
 See [docs/SECURITY.md](docs/SECURITY.md) for complete security guidelines.
 
 ---
-
-A production-ready system for managing isolated Redis instances with TLS encryption, resource limits, monitoring, and optional RedisInsight.
-
-CachePilot is a suite of Bash scripts for administering multi-tenant Redis environments. It uses Docker for tenant isolation, automates certificate management with a local CA, and provides a command-line interface for management tasks.
-
-This project is designed for hosting providers, agencies, and developers who need to manage Redis services for multiple clients or projects on a single server.
 
 ## System Requirements
 
