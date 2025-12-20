@@ -249,8 +249,8 @@ if [ "$NEEDS_SERVER_CONFIG" = true ]; then
         
         [[ "$USE_SSL" =~ ^[Yy]$ ]] && SERVER_URL="https://$SERVER_DOMAIN" || SERVER_URL="http://$SERVER_DOMAIN"
         
-        sed -i "s|url: http://localhost|url: $SERVER_URL|g" /etc/cachepilot/frontend.yaml 2>/dev/null || true
-        sed -i "s|http://localhost|$SERVER_URL|g" /etc/cachepilot/api.yaml 2>/dev/null || true
+        sed -i "s|url: .*|url: $SERVER_URL|g" /etc/cachepilot/frontend.yaml 2>/dev/null || true
+        sed -i "s|http://.*|$SERVER_URL|g" /etc/cachepilot/api.yaml 2>/dev/null || true
         sed -i "s|http://localhost:3000|$SERVER_URL|g" /etc/cachepilot/api.yaml 2>/dev/null || true
         
         export SERVER_DOMAIN SERVER_URL USE_SSL

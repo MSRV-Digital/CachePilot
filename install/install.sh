@@ -202,7 +202,7 @@ read -p "Public IP/domain (default: 127.0.0.1): " PUBLIC_IP
 PUBLIC_IP=${PUBLIC_IP:-127.0.0.1}
 
 sed -i "s/internal_ip: localhost/internal_ip: $INTERNAL_IP/g" "/etc/cachepilot/system.yaml"
-sed -i "s/public_ip: not-configured/public_ip: $PUBLIC_IP/g" "/etc/cachepilot/system.yaml"
+sed -i "s/public_ip: localhost/public_ip: $PUBLIC_IP/g" "/etc/cachepilot/system.yaml"
 echo -e "${GREEN}✓${NC} Configuration updated"
 echo ""
 
