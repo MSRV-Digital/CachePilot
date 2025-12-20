@@ -207,6 +207,35 @@ echo ""
 
 echo -e "${BLUE}[8/11]${NC} Checking server configuration..."
 
+# Check for network configuration
+NEEDS_NETWORK_CONFIG=false
+if [ -f "/etc/cachepilot/system.yaml" ]; then
+    CURRENT_INTERNAL_IP=$(grep "internal_ip:" /etc/cachepilot/system.yaml | awk '{print $2}')
+    if [[ "$CURRENT_INTERNAL_IP" == "localhost" ]] || [[ "$CURRENT_INTERNAL_IP" == "127.0.0.1" ]]; then
+        NEEDS_NETWORK_CONFIG=true
+    fi
+fi
+
+if [ "$NEEDS_NETWORK_CONFIG" = true ]; then
+    echo ""
+    echo -e "${YELLOW}⚠️  Netzwerk-Konfiguration prüfen${NC}"
+    echo "Aktuelle Internal IP: $CURRENT_INTERNAL_IP"
+    echo ""
+    echo "WICHTIG: Für Netzwerk-Zugriff sollte die interne Server-IP konfiguriert sein."
+    echo "  • Beispiele: 10.0.0.5, 192.168.1.100, 172.16.0.10"
+    echo "  • Für alle Interfaces: 0.0.0.0"
+    echo ""
+    read -p "Internal IP aktualisieren? (y/N): " UPDATE_INTERNAL_IP
+    if [[ "$UPDATE_INTERNAL_IP" =~ ^[Yy]$ ]]; then
+        read -p "Neue Internal IP: " NEW_INTERNAL_IP
+        if [[ -n "$NEW_INTERNAL_IP" ]] && [[ "$NEW_INTERNAL_IP" != "$CURRENT_INTERNAL_IP" ]]; then
+            sed -i "s/internal_ip: .*/internal_ip: $NEW_INTERNAL_IP/g" /etc/cachepilot/system.yaml
+            echo -e "${GREEN}✓${NC} Internal IP aktualisiert: $NEW_INTERNAL_IP"
+            echo -e "${YELLOW}Hinweis: Bestehende Tenants müssen neu gestartet werden${NC}"
+        fi
+    fi
+fi
+
 NEEDS_SERVER_CONFIG=false
 [ -f "/etc/cachepilot/frontend.yaml" ] && grep -q "url: http://localhost" "/etc/cachepilot/frontend.yaml" && NEEDS_SERVER_CONFIG=true
 

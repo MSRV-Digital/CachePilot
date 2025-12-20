@@ -102,8 +102,23 @@ rename-command DEBUG ""
 slowlog-log-slower-than 10000
 slowlog-max-len 128
 
-timeout 300
-tcp-keepalive 60
+# Network Performance Optimizations
+tcp-backlog 511
+timeout 60
+tcp-keepalive 30
+
+# Client Connection Limits and Buffers
+maxclients 10000
+client-output-buffer-limit normal 0 0 0
+client-output-buffer-limit replica 256mb 64mb 60
+client-output-buffer-limit pubsub 32mb 8mb 60
+
+# IO Threading for better network performance (Redis 6.0+)
+io-threads 4
+io-threads-do-reads yes
+
+# Latency Monitoring
+latency-monitor-threshold 100
 EOF
 }
 

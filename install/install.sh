@@ -165,13 +165,39 @@ if [ ! -f "/etc/cachepilot/system.yaml" ]; then
 fi
 
 echo ""
-echo "Network Configuration:"
-echo "  Internal IP: Redis container bindings (127.0.0.1=localhost, private IP for network access)"
-echo "  Public IP: RedisInsight and external URLs"
+echo "=========================================="
+echo "NETZWERK KONFIGURATION"
+echo "=========================================="
 echo ""
-read -p "Internal IP (default: 127.0.0.1): " INTERNAL_IP
-INTERNAL_IP=${INTERNAL_IP:-127.0.0.1}
+echo -e "${YELLOW}WICHTIG: Redis wird über das interne Netzwerk genutzt!${NC}"
+echo ""
+echo "Internal IP (Redis Binding):"
+echo "  • Für Netzwerk-Zugriff: Geben Sie die interne Server-IP ein"
+echo "    Beispiele: 10.0.0.5, 192.168.1.100, 172.16.0.10"
+echo "  • Für alle Interfaces: 0.0.0.0"
+echo "  • NUR für lokale Tests: 127.0.0.1"
+echo ""
+read -p "Internal IP (Netzwerk-Zugriff empfohlen): " INTERNAL_IP
 
+# Validierung und Warnung
+if [[ -z "$INTERNAL_IP" ]] || [[ "$INTERNAL_IP" == "127.0.0.1" ]]; then
+    echo ""
+    echo -e "${RED}⚠️  WARNUNG: 127.0.0.1 erlaubt NUR lokalen Zugriff!${NC}"
+    echo -e "${YELLOW}Redis wird NICHT über das Netzwerk erreichbar sein.${NC}"
+    echo ""
+    read -p "Wirklich fortfahren mit 127.0.0.1? [y/N]: " confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        read -p "Geben Sie die interne Server-IP ein: " INTERNAL_IP
+        if [[ -z "$INTERNAL_IP" ]]; then
+            echo "Installation abgebrochen."
+            exit 1
+        fi
+    fi
+fi
+
+INTERNAL_IP=${INTERNAL_IP:-127.0.0.1}
+echo ""
+echo "Public IP/Domain (für RedisInsight und externe URLs):"
 read -p "Public IP/domain (default: 127.0.0.1): " PUBLIC_IP
 PUBLIC_IP=${PUBLIC_IP:-127.0.0.1}
 
@@ -190,12 +216,38 @@ fi
 echo ""
 
 # Step 7: Setup cron jobs
-echo -e "${BLUE}[7/9]${NC} Setting up cron jobs..."
+echo -e "${BLUE}[7/10]${NC} Setting up cron jobs..."
 if [ -x "$INSTALL_DIR/install/scripts/setup-cron.sh" ]; then
     bash "$INSTALL_DIR/install/scripts/setup-cron.sh"
 else
     echo -e "${RED}Error: setup-cron.sh not found${NC}"
     exit 1
+fi
+echo ""
+
+# Step 7.5: Optional Network Tuning
+echo -e "${BLUE}[7.5/10]${NC} Network Performance Tuning (Optional)..."
+echo ""
+echo "Apply system-level network optimizations for maximum Redis performance?"
+echo "  • Higher connection capacity (65k connections)"
+echo "  • Lower latency (tcp-nodelay, optimized timeouts)"
+echo "  • Better throughput (optimized TCP buffers)"
+echo "  • Disables Transparent Huge Pages (THP)"
+echo ""
+read -p "Apply network tuning? (Y/n): " APPLY_TUNING
+APPLY_TUNING=${APPLY_TUNING:-Y}
+
+if [[ "$APPLY_TUNING" =~ ^[Yy]$ ]]; then
+    if [ -x "$INSTALL_DIR/install/scripts/setup-network-tuning.sh" ]; then
+        bash "$INSTALL_DIR/install/scripts/setup-network-tuning.sh"
+        TUNING_APPLIED=true
+    else
+        echo -e "${YELLOW}⚠${NC} Network tuning script not found, skipping"
+        TUNING_APPLIED=false
+    fi
+else
+    echo "Network tuning skipped (can be applied later with: sudo bash $INSTALL_DIR/install/scripts/setup-network-tuning.sh)"
+    TUNING_APPLIED=false
 fi
 echo ""
 
