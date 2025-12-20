@@ -56,7 +56,7 @@ generate_tenant_cert() {
 basicConstraints=CA:FALSE
 subjectKeyIdentifier=hash
 authorityKeyIdentifier=keyid,issuer
-subjectAltName=DNS:${tenant}.redis,DNS:localhost,IP:127.0.0.1
+subjectAltName=DNS:${tenant}.redis,DNS:localhost,IP:127.0.0.1,IP:${INTERNAL_IP}
 EOF
     
     openssl x509 -req -in "$csr" -CA "$ca_cert" -CAkey "$ca_key" \
