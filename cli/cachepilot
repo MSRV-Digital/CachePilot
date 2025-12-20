@@ -72,11 +72,120 @@ Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
 EOF
 }
 
+show_version_detailed() {
+    echo "CachePilot v${VERSION}"
+    echo ""
+    
+    if [ -d "${CACHEPILOT_DIR}/.git" ]; then
+        cd "${CACHEPILOT_DIR}"
+        echo "Git Information:"
+        echo "  Branch:      $(git rev-parse --abbrev-ref HEAD)"
+        echo "  Commit:      $(git rev-parse --short HEAD)"
+        echo "  Commit Date: $(git log -1 --format=%cd --date=short)"
+        echo "  Latest Tag:  $(git describe --tags --abbrev=0 2>/dev/null || echo 'none')"
+        echo "  Remote:      $(git remote get-url origin 2>/dev/null || echo 'none')"
+        echo ""
+        
+        local changes=$(git status --short | wc -l)
+        if [ "$changes" -gt 0 ]; then
+            echo "  Status:      ${YELLOW}${changes} file(s) modified${NC}"
+        else
+            echo "  Status:      ${GREEN}Clean${NC}"
+        fi
+    else
+        echo ""
+        echo "Installation Type: Legacy (non-Git)"
+        echo "Convert to Git: sudo bash ${CACHEPILOT_DIR}/install/scripts/git-setup.sh convert"
+    fi
+    echo ""
+}
+
+system_info() {
+    if [ -x "${CACHEPILOT_DIR}/install/scripts/git-setup.sh" ]; then
+        bash "${CACHEPILOT_DIR}/install/scripts/git-setup.sh" info
+    else
+        echo "Git setup script not found"
+        return 1
+    fi
+}
+
+system_update() {
+    if [ ! -x "${CACHEPILOT_DIR}/install/upgrade.sh" ]; then
+        error "Upgrade script not found: ${CACHEPILOT_DIR}/install/upgrade.sh"
+    fi
+    
+    echo "Running system update..."
+    echo ""
+    sudo bash "${CACHEPILOT_DIR}/install/upgrade.sh"
+}
+
+system_check_updates() {
+    if [ -x "${CACHEPILOT_DIR}/install/scripts/update-check.sh" ]; then
+        bash "${CACHEPILOT_DIR}/install/scripts/update-check.sh" check
+    else
+        echo "Update check script not found"
+        return 1
+    fi
+}
+
+system_rollback() {
+    if [ ! -d "${CACHEPILOT_DIR}/.git" ]; then
+        error "Not a Git-based installation. Cannot rollback."
+    fi
+    
+    cd "${CACHEPILOT_DIR}"
+    
+    echo ""
+    echo "Recent commits (newest first):"
+    echo "=============================="
+    git log --oneline -10
+    echo ""
+    
+    read -p "Enter commit hash to rollback to (or 'cancel'): " commit_hash
+    
+    if [ "$commit_hash" = "cancel" ] || [ -z "$commit_hash" ]; then
+        echo "Rollback cancelled"
+        return 0
+    fi
+    
+    echo ""
+    echo "This will rollback to commit: $commit_hash"
+    read -p "Are you sure? Type 'yes' to confirm: " confirm
+    
+    if [ "$confirm" != "yes" ]; then
+        echo "Rollback cancelled"
+        return 0
+    fi
+    
+    echo ""
+    echo "Creating backup of current state..."
+    git stash push -m "Pre-rollback backup $(date +%Y%m%d-%H%M%S)" 2>/dev/null || true
+    
+    echo "Rolling back..."
+    if git checkout "$commit_hash"; then
+        success "Rolled back to $commit_hash"
+        echo ""
+        echo "Important: Restart services to apply changes"
+        echo "  sudo systemctl restart cachepilot-api"
+        echo ""
+        echo "To return to latest: git checkout $(git rev-parse --abbrev-ref HEAD@{1})"
+    else
+        error "Rollback failed"
+    fi
+}
+
 show_usage() {
     cat << EOF
 CachePilot - Multi-Tenant Redis Management System v${VERSION}
 
 Usage: cachepilot <command> [arguments]
+
+System Management:
+  version                         Show version information
+  system info                     Show detailed system/Git information
+  system update                   Update CachePilot to latest version
+  system check-updates            Check for available updates
+  system rollback                 Rollback to previous Git commit
 
 Tenant Management:
   new <tenant>                    Create new Redis instance
@@ -153,7 +262,11 @@ main() {
     
     case "$command" in
         --version|-v)
-            show_version
+            show_version_detailed
+            exit 0
+            ;;
+        version)
+            show_version_detailed
             exit 0
             ;;
         --help|-h)
@@ -375,6 +488,30 @@ main() {
         api)
             [[ $# -lt 1 ]] && error "Usage: cachepilot api <start|stop|restart|status|logs|key>"
             api_command "$@"
+            ;;
+        system)
+            [[ $# -lt 1 ]] && error "Usage: cachepilot system <info|update|check-updates|rollback>"
+            local subcmd="$1"
+            shift
+            case "$subcmd" in
+                info)
+                    system_info
+                    ;;
+                update)
+                    system_update
+                    ;;
+                check-updates)
+                    system_check_updates
+                    ;;
+                rollback)
+                    system_rollback
+                    ;;
+                *)
+                    error "Unknown system command: $subcmd"
+                    echo "Available: info, update, check-updates, rollback"
+                    exit 1
+                    ;;
+            esac
             ;;
         *)
             error "Unknown command: $command"

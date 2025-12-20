@@ -132,10 +132,13 @@ The installation script will check for and install missing dependencies, but you
 
 ### Installation
 
-1. **Clone and navigate:**
+CachePilot v2.1.0+ uses **Git-based deployment** for easier updates and version management.
+
+1. **Download installation files:**
    ```bash
-   git clone https://github.com/MSRV-Digital/CachePilot.git
-   cd CachePilot
+   # Temporary clone for running the installer
+   git clone https://github.com/MSRV-Digital/CachePilot.git /tmp/cachepilot-install
+   cd /tmp/cachepilot-install
    ```
 
 2. **Create system backup (critical)**
@@ -146,18 +149,37 @@ The installation script will check for and install missing dependencies, but you
    ```
    
    The installer will:
+   - Clone the repository to `/opt/cachepilot` (permanent Git-based installation)
+   - Select branch: **main** (stable) or **develop** (beta)
    - Check dependencies and install missing packages
-   - Set up directory structure
+   - Set up FHS-compliant directory structure
    - Configure network settings (prompts for IPs)
    - Optionally install REST API (prompts)
    - Configure server domain and SSL (prompts)
    - Optionally build frontend with nginx (prompts)
 
-4. **Verify:**
+4. **Verify installation:**
    ```bash
    cachepilot --version
+   cachepilot system info   # Shows Git branch and commit
    cachepilot health
    ```
+
+5. **Clean up (optional):**
+   ```bash
+   cd ~
+   rm -rf /tmp/cachepilot-install
+   ```
+
+**New in v2.1.0:** Git-based installation enables:
+- One-command updates: `sudo cachepilot system update`
+- Easy rollback: `sudo cachepilot system rollback`
+- Branch switching: stable ↔ beta
+- Version tracking with Git history
+
+**Note:** The initial clone in `/tmp` is temporary and only used to run the installer. The installer creates the permanent Git-based installation in `/opt/cachepilot`.
+
+See [docs/GIT-WORKFLOW.md](docs/GIT-WORKFLOW.md) for complete Git workflow documentation.
 
 ### Quick Start
 

@@ -50,7 +50,7 @@ This deployment guide is for CachePilot v2.1.0-beta. The installation process is
 
 ```bash
 git clone https://github.com/MSRV-Digital/CachePilot.git
-cd redis-manager
+cd CachePilot
 ```
 
 ### 2. Create System Backup
@@ -64,15 +64,21 @@ sudo ./install/install.sh
 ```
 
 The installer will:
+- Clone repository to `/opt/cachepilot` (Git-based installation)
+- Prompt for branch selection: **main** (stable) or **develop** (beta)
 - Detect your system configuration
 - Install dependencies
-- Set up directories and permissions
+- Set up FHS-compliant directory structure
 - Configure systemd services
 - Optionally install the REST API
+
+**New in v2.1.0:** Git-based installation enables easy updates and rollback. See [GIT-WORKFLOW.md](GIT-WORKFLOW.md) for details.
 
 ### 4. Verify Installation
 
 ```bash
+cachepilot --version
+cachepilot system info   # Shows Git branch and commit
 cachepilot list
 cachepilot health
 ```
@@ -335,7 +341,7 @@ BACKUP_MAX_COUNT=50
 
 ```bash
 cachepilot list-backups <tenant>
-cachepilot verify-backup /opt/cachepilot/backups/<tenant>/<file>
+cachepilot verify-backup /var/cachepilot/backups/<tenant>/<file>
 ```
 
 ## Maintenance
@@ -368,16 +374,16 @@ cachepilot health
 
 ```bash
 # Main log
-tail -f /opt/cachepilot/logs/cachepilot.log
+tail -f /var/log/cachepilot/cachepilot.log
 
 # Audit log
-tail -f /opt/cachepilot/logs/audit.log
+tail -f /var/log/cachepilot/audit.log
 
 # Metrics
-tail -f /opt/cachepilot/logs/metrics.jsonl
+tail -f /var/log/cachepilot/metrics.jsonl
 
 # Alerts
-cat /opt/cachepilot/logs/alerts/history.json | jq
+cat /var/log/cachepilot/alerts/history.json | jq
 ```
 
 ### API Issues
@@ -417,7 +423,7 @@ If issues occur after deployment:
 
 2. **Restore from Backup**
    ```bash
-   cachepilot restore <tenant> /opt/cachepilot/backups/<tenant>/<backup-file>
+   cachepilot restore <tenant> /var/cachepilot/backups/<tenant>/<backup-file>
    ```
 
 3. **Check System Health**
@@ -461,9 +467,57 @@ intervals:
 - Disk: ~100MB per tenant + backups
 - CPU: Redis is single-threaded, distribute across cores via containers
 
+## Git-Based Updates & Maintenance
+
+CachePilot v2.1.0+ uses Git for easy updates and version management.
+
+### Check for Updates
+
+```bash
+# Check if updates are available
+cachepilot system check-updates
+
+# View current Git status
+cachepilot system info
+```
+
+### Install Updates
+
+```bash
+# Update to latest version
+sudo cachepilot system update
+
+# Or manually
+sudo bash /opt/cachepilot/install/upgrade.sh
+```
+
+### Rollback to Previous Version
+
+```bash
+# Interactive rollback to previous commit
+sudo cachepilot system rollback
+
+# View Git history
+cd /opt/cachepilot
+git log --oneline -10
+```
+
+### Switch Branches
+
+```bash
+# Switch between stable and beta
+cd /opt/cachepilot
+sudo git checkout develop  # Beta version
+sudo git checkout main     # Stable version
+sudo cachepilot system update
+```
+
+For complete Git workflow documentation, see [GIT-WORKFLOW.md](GIT-WORKFLOW.md).
+
 ## Support
 
 For issues or questions:
 - GitHub Issues: https://github.com/MSRV-Digital/CachePilot/issues
 - Documentation: https://github.com/MSRV-Digital/CachePilot/tree/main/docs
+- Git Workflow Guide: [GIT-WORKFLOW.md](GIT-WORKFLOW.md)
 - Email: cachepilot@msrv-digital.de

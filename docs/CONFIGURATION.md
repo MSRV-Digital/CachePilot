@@ -49,13 +49,13 @@ Main system configuration file containing all paths, network settings, defaults,
 ```yaml
 # CachePilot System Configuration
 
-# System Paths
+# System Paths (FHS-compliant)
 paths:
   base_dir: /opt/cachepilot
-  tenants_dir: /opt/cachepilot/data/tenants
-  ca_dir: /opt/cachepilot/data/ca
-  backups_dir: /opt/cachepilot/data/backups
-  logs_dir: /opt/cachepilot/data/logs
+  tenants_dir: /var/cachepilot/tenants
+  ca_dir: /var/cachepilot/ca
+  backups_dir: /var/cachepilot/backups
+  logs_dir: /var/log/cachepilot
   templates_dir: /opt/cachepilot/templates
   cli_dir: /opt/cachepilot/cli
   api_dir: /opt/cachepilot/api
@@ -101,10 +101,10 @@ Defines all directory paths used by the system.
 | Key | Type | Description | Default |
 |-----|------|-------------|---------|
 | `base_dir` | string | Base installation directory | `/opt/cachepilot` |
-| `tenants_dir` | string | Tenant data directory | `{base_dir}/data/tenants` |
-| `ca_dir` | string | Certificate authority directory | `{base_dir}/data/ca` |
-| `backups_dir` | string | Backup storage directory | `{base_dir}/data/backups` |
-| `logs_dir` | string | Log files directory | `{base_dir}/data/logs` |
+| `tenants_dir` | string | Tenant data directory | `/var/cachepilot/tenants` |
+| `ca_dir` | string | Certificate authority directory | `/var/cachepilot/ca` |
+| `backups_dir` | string | Backup storage directory | `/var/cachepilot/backups` |
+| `logs_dir` | string | Log files directory | `/var/log/cachepilot` |
 | `templates_dir` | string | Configuration templates | `{base_dir}/templates` |
 | `cli_dir` | string | CLI scripts directory | `{base_dir}/cli` |
 | `api_dir` | string | API application directory | `{base_dir}/api` |
@@ -294,9 +294,10 @@ Environment variables can be used to override configuration values.
 # Override base directory
 REDIS_MGR_BASE_DIR=/custom/path
 
-# Override specific paths
-REDIS_MGR_TENANTS_DIR=/var/redis/tenants
-REDIS_MGR_BACKUPS_DIR=/backup/redis
+# Override specific paths (FHS-compliant defaults)
+REDIS_MGR_TENANTS_DIR=/var/cachepilot/tenants
+REDIS_MGR_BACKUPS_DIR=/var/cachepilot/backups
+REDIS_MGR_LOGS_DIR=/var/log/cachepilot
 
 # Override network settings
 REDIS_MGR_PUBLIC_IP=203.0.113.10

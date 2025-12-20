@@ -143,3 +143,17 @@ debug.log
 
 # Handover packages
 data/tenants/*/handover/*.zip
+
+# ===================================
+# Git-Based Installation
+# ===================================
+# Keep .git directory for Git-based updates
+# !.git/
+
+# API virtual environment
+api/venv/
+
+# Branch tracking file
+.cachepilot-branch
+
+# Git stash backups are managed by Git itself

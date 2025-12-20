@@ -31,8 +31,9 @@ fi
 INSTALL_DIR="/opt/cachepilot"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-echo "Installation directory: $INSTALL_DIR"
-echo "Source directory: $SCRIPT_DIR"
+echo "Installation will use Git-based deployment"
+echo "Repository: https://github.com/MSRV-Digital/CachePilot"
+echo "Target directory: $INSTALL_DIR"
 echo ""
 
 echo "=================================================="
@@ -58,12 +59,44 @@ fi
 
 echo ""
 
-echo -e "${BLUE}[0/10]${NC} Copying configuration files..."
+echo -e "${BLUE}[0/10]${NC} Cloning CachePilot from Git..."
+
+# Use git-setup.sh to handle Git-based installation
+if [ -x "$SCRIPT_DIR/install/scripts/git-setup.sh" ]; then
+    # Select branch
+    echo ""
+    echo "Select installation branch:"
+    echo "  1) main    - Stable releases (recommended)"
+    echo "  2) develop - Beta versions"
+    read -p "Choice [1]: " BRANCH_CHOICE
+    
+    case $BRANCH_CHOICE in
+        2) GIT_BRANCH="develop" ;;
+        *) GIT_BRANCH="main" ;;
+    esac
+    
+    bash "$SCRIPT_DIR/install/scripts/git-setup.sh" install "$GIT_BRANCH"
+    
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Git installation failed${NC}"
+        exit 1
+    fi
+    
+    # Switch to the newly cloned installation directory
+    SCRIPT_DIR="$INSTALL_DIR"
+    echo -e "${GREEN}✓${NC} Switched to installation directory: $INSTALL_DIR"
+else
+    echo -e "${RED}Error: git-setup.sh not found${NC}"
+    exit 1
+fi
+echo ""
+
+echo -e "${BLUE}[0.5/10]${NC} Setting up configuration..."
 
 mkdir -p "/etc/cachepilot"
 
-if [ -d "$SCRIPT_DIR/config" ]; then
-    cp -r "$SCRIPT_DIR/config"/* "/etc/cachepilot/" 2>/dev/null || true
+if [ -d "$INSTALL_DIR/config" ]; then
+    cp -r "$INSTALL_DIR/config"/* "/etc/cachepilot/" 2>/dev/null || true
     echo -e "${GREEN}✓${NC} Configuration files copied"
 else
     echo -e "${RED}✗${NC} Configuration source not found"
@@ -73,15 +106,6 @@ fi
 chmod 755 "/etc/cachepilot"
 chmod 640 "/etc/cachepilot"/*.yaml 2>/dev/null || true
 echo -e "${GREEN}✓${NC} Permissions set"
-echo ""
-
-if [ -d "$INSTALL_DIR" ]; then
-    BACKUP_DIR="/opt/cachepilot.backup.$(date +%Y%m%d_%H%M%S)"
-    echo "Creating backup: $BACKUP_DIR"
-    cp -r "$INSTALL_DIR" "$BACKUP_DIR"
-    echo -e "${GREEN}✓${NC} Backup created"
-    echo ""
-fi
 
 echo -e "${BLUE}[1/8]${NC} Installing system dependencies..."
 if [ -x "$SCRIPT_DIR/install/scripts/install-deps.sh" ]; then
@@ -112,40 +136,13 @@ fi
 
 echo ""
 
-# Step 3: Copy files
-echo -e "${BLUE}[3/8]${NC} Installing files..."
-
-if [ "$SCRIPT_DIR" != "$INSTALL_DIR" ]; then
-    cp -r "$SCRIPT_DIR/cli"/* "$INSTALL_DIR/cli/" 2>/dev/null || true
-    cp -r "$SCRIPT_DIR/api"/* "$INSTALL_DIR/api/" 2>/dev/null || true
-    cp -r "$SCRIPT_DIR/install"/* "$INSTALL_DIR/install/" 2>/dev/null || true
-    cp -r "$SCRIPT_DIR/scripts"/* "$INSTALL_DIR/scripts/" 2>/dev/null || true
-    if [ -d "$SCRIPT_DIR/frontend" ]; then
-        cp -r "$SCRIPT_DIR/frontend"/* "$INSTALL_DIR/frontend/" 2>/dev/null || true
-    fi
-    cp -r "$SCRIPT_DIR/docs"/* "$INSTALL_DIR/docs/" 2>/dev/null || true
-    cp "$SCRIPT_DIR/README.md" "$INSTALL_DIR/" 2>/dev/null || true
-    cp "$SCRIPT_DIR/LICENSE" "$INSTALL_DIR/" 2>/dev/null || true
-    cp "$SCRIPT_DIR/CHANGELOG.md" "$INSTALL_DIR/" 2>/dev/null || true
-    
-    mkdir -p "$INSTALL_DIR/config" 2>/dev/null || true
-    if [ ! -f "$INSTALL_DIR/config/README.txt" ]; then
-        cat > "$INSTALL_DIR/config/README.txt" << 'EOF'
-Configuration files are in /etc/cachepilot/
-See /etc/cachepilot/ for all configuration files.
-EOF
-    fi
-    echo -e "${GREEN}✓${NC} Files copied"
-else
-    if [ -d "$INSTALL_DIR/config" ] && [ ! -f "/etc/cachepilot/system.yaml" ]; then
-        cp -r "$INSTALL_DIR/config"/* "/etc/cachepilot/" 2>/dev/null || true
-    fi
-fi
+# Step 3: Set permissions (files already cloned from Git)
+echo -e "${BLUE}[3/8]${NC} Setting file permissions..."
 
 chmod +x "$INSTALL_DIR/cli/cachepilot"
-chmod +x "$INSTALL_DIR/cli/lib"/*.sh
-chmod +x "$INSTALL_DIR/scripts"/*.sh
-chmod +x "$INSTALL_DIR/install/scripts"/*.sh
+chmod +x "$INSTALL_DIR/cli/lib"/*.sh 2>/dev/null || true
+chmod +x "$INSTALL_DIR/scripts"/*.sh 2>/dev/null || true
+chmod +x "$INSTALL_DIR/install/scripts"/*.sh 2>/dev/null || true
 
 echo -e "${GREEN}✓${NC} Permissions set"
 echo ""

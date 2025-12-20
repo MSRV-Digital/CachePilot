@@ -37,14 +37,27 @@ if [ ! -d "$INSTALL_DIR" ]; then
 fi
 
 echo "Directory: $INSTALL_DIR"
-echo "Backup: $BACKUP_DIR"
 echo ""
 
-CURRENT_VERSION="unknown"
-if [ -f "$INSTALL_DIR/CHANGELOG.md" ]; then
-    CURRENT_VERSION=$(grep -m1 "^## " "$INSTALL_DIR/CHANGELOG.md" | sed 's/## \[\(.*\)\].*/\1/' || echo "unknown")
+# Check if Git-based installation
+IS_GIT_BASED=false
+if [ -d "$INSTALL_DIR/.git" ]; then
+    IS_GIT_BASED=true
+    cd "$INSTALL_DIR"
+    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+    CURRENT_COMMIT=$(git rev-parse --short HEAD)
+    echo "Git-based installation detected"
+    echo "Branch: $CURRENT_BRANCH"
+    echo "Current commit: $CURRENT_COMMIT"
+else
+    echo -e "${YELLOW}⚠${NC} Legacy installation detected (not Git-based)"
+    echo "Consider converting to Git-based: sudo bash $INSTALL_DIR/install/scripts/git-setup.sh convert"
+    CURRENT_VERSION="unknown"
+    if [ -f "$INSTALL_DIR/CHANGELOG.md" ]; then
+        CURRENT_VERSION=$(grep -m1 "^## " "$INSTALL_DIR/CHANGELOG.md" | sed 's/## \[\(.*\)\].*/\1/' || echo "unknown")
+    fi
+    echo "Current version: $CURRENT_VERSION"
 fi
-echo "Current: $CURRENT_VERSION"
 echo ""
 
 echo "=================================================="
@@ -70,14 +83,21 @@ echo ""
 
 echo -e "${BLUE}[1/11]${NC} Creating backup..."
 
-mkdir -p "$BACKUP_DIR"
-[ -d "$INSTALL_DIR/config" ] && cp -r "$INSTALL_DIR/config" "$BACKUP_DIR/"
-[ -f "$INSTALL_DIR/cachepilot" ] && cp "$INSTALL_DIR/cachepilot" "$BACKUP_DIR/cachepilot.old" 2>/dev/null || true
+if [ "$IS_GIT_BASED" = true ]; then
+    # Git handles backups automatically, just note current state
+    cd "$INSTALL_DIR"
+    git stash push -m "Pre-upgrade backup $(date +%Y%m%d-%H%M%S)" 2>/dev/null || true
+    echo -e "${GREEN}✓${NC} Current state saved in Git stash"
+else
+    # Legacy backup for non-Git installations
+    mkdir -p "$BACKUP_DIR"
+    [ -d "$INSTALL_DIR/config" ] && cp -r "$INSTALL_DIR/config" "$BACKUP_DIR/"
+    [ -f "$INSTALL_DIR/cachepilot" ] && cp "$INSTALL_DIR/cachepilot" "$BACKUP_DIR/cachepilot.old" 2>/dev/null || true
+    echo -e "${GREEN}✓${NC} Backup created: $BACKUP_DIR"
+fi
 
 HAS_OLD_DATA=false
 [ -d "$INSTALL_DIR/data" ] && HAS_OLD_DATA=true
-
-echo -e "${GREEN}✓${NC} Backup created"
 echo ""
 
 echo -e "${BLUE}[2/11]${NC} Stopping services..."
@@ -91,8 +111,8 @@ echo -e "${GREEN}✓${NC} Services stopped"
 echo ""
 
 echo -e "${BLUE}[3/11]${NC} Checking dependencies..."
-[ -x "$SCRIPT_DIR/install/scripts/install-deps.sh" ] && bash "$SCRIPT_DIR/install/scripts/install-deps.sh"
-[ -x "$SCRIPT_DIR/install/scripts/check-deps.sh" ] && bash "$SCRIPT_DIR/install/scripts/check-deps.sh"
+[ -x "$INSTALL_DIR/install/scripts/install-deps.sh" ] && bash "$INSTALL_DIR/install/scripts/install-deps.sh"
+[ -x "$INSTALL_DIR/install/scripts/check-deps.sh" ] && bash "$INSTALL_DIR/install/scripts/check-deps.sh"
 echo ""
 
 echo -e "${BLUE}[4/11]${NC} Checking configuration..."
@@ -101,29 +121,60 @@ echo ""
 
 echo -e "${BLUE}[5/11]${NC} Updating files..."
 
-[ -d "$SCRIPT_DIR/cli" ] && cp -r "$SCRIPT_DIR/cli"/* "$INSTALL_DIR/cli/" 2>/dev/null || true
-[ -d "$SCRIPT_DIR/api" ] && cp -r "$SCRIPT_DIR/api"/* "$INSTALL_DIR/api/" 2>/dev/null || true
-[ -d "$SCRIPT_DIR/install" ] && cp -r "$SCRIPT_DIR/install"/* "$INSTALL_DIR/install/" 2>/dev/null || true
-[ -d "$SCRIPT_DIR/scripts" ] && cp -r "$SCRIPT_DIR/scripts"/* "$INSTALL_DIR/scripts/" 2>/dev/null || true
-[ -d "$SCRIPT_DIR/docs" ] && cp -r "$SCRIPT_DIR/docs"/* "$INSTALL_DIR/docs/" 2>/dev/null || true
+if [ "$IS_GIT_BASED" = true ]; then
+    # Git Pull Update
+    cd "$INSTALL_DIR"
+    
+    echo "Fetching updates from Git..."
+    git fetch origin
+    
+    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+    echo "Pulling updates for branch: $CURRENT_BRANCH"
+    
+    if git pull origin "$CURRENT_BRANCH"; then
+        echo -e "${GREEN}✓${NC} Git pull successful"
+        NEW_COMMIT=$(git rev-parse --short HEAD)
+        echo "Updated to commit: $NEW_COMMIT"
+        
+        # Show what changed
+        echo ""
+        echo "Recent changes:"
+        git log --oneline -5
+    else
+        echo -e "${RED}✗${NC} Git pull failed"
+        echo "You may have local changes. Run: git status"
+        exit 1
+    fi
+    
+    # Update configuration files if they don't exist
+    mkdir -p /etc/cachepilot
+    [ ! -f "/etc/cachepilot/system.yaml" ] && [ -f "$INSTALL_DIR/config/system.yaml" ] && cp "$INSTALL_DIR/config/system.yaml" /etc/cachepilot/
+    [ ! -f "/etc/cachepilot/api.yaml" ] && [ -f "$INSTALL_DIR/config/api.yaml" ] && cp "$INSTALL_DIR/config/api.yaml" /etc/cachepilot/
+    [ ! -f "/etc/cachepilot/frontend.yaml" ] && [ -f "$INSTALL_DIR/config/frontend.yaml" ] && cp "$INSTALL_DIR/config/frontend.yaml" /etc/cachepilot/
+else
+    # Legacy file copy method
+    echo -e "${YELLOW}⚠${NC} Using legacy update method (copying files)"
+    
+    [ -d "$SCRIPT_DIR/cli" ] && cp -r "$SCRIPT_DIR/cli"/* "$INSTALL_DIR/cli/" 2>/dev/null || true
+    [ -d "$SCRIPT_DIR/api" ] && cp -r "$SCRIPT_DIR/api"/* "$INSTALL_DIR/api/" 2>/dev/null || true
+    [ -d "$SCRIPT_DIR/install" ] && cp -r "$SCRIPT_DIR/install"/* "$INSTALL_DIR/install/" 2>/dev/null || true
+    [ -d "$SCRIPT_DIR/scripts" ] && cp -r "$SCRIPT_DIR/scripts"/* "$INSTALL_DIR/scripts/" 2>/dev/null || true
+    [ -d "$SCRIPT_DIR/docs" ] && cp -r "$SCRIPT_DIR/docs"/* "$INSTALL_DIR/docs/" 2>/dev/null || true
+    
+    cp "$SCRIPT_DIR/README.md" "$INSTALL_DIR/" 2>/dev/null || true
+    cp "$SCRIPT_DIR/CHANGELOG.md" "$INSTALL_DIR/" 2>/dev/null || true
+    
+    mkdir -p /etc/cachepilot
+    [ ! -f "/etc/cachepilot/system.yaml" ] && [ -f "$SCRIPT_DIR/config/system.yaml" ] && cp "$SCRIPT_DIR/config/system.yaml" /etc/cachepilot/
+    [ ! -f "/etc/cachepilot/api.yaml" ] && [ -f "$SCRIPT_DIR/config/api.yaml" ] && cp "$SCRIPT_DIR/config/api.yaml" /etc/cachepilot/
+    [ ! -f "/etc/cachepilot/frontend.yaml" ] && [ -f "$SCRIPT_DIR/config/frontend.yaml" ] && cp "$SCRIPT_DIR/config/frontend.yaml" /etc/cachepilot/
+    
+    echo -e "${GREEN}✓${NC} Files copied"
+fi
 
-cp "$SCRIPT_DIR/README.md" "$INSTALL_DIR/" 2>/dev/null || true
-cp "$SCRIPT_DIR/CHANGELOG.md" "$INSTALL_DIR/" 2>/dev/null || true
-cp "$SCRIPT_DIR/.gitignore" "$INSTALL_DIR/" 2>/dev/null || true
-
-mkdir -p /etc/cachepilot
-[ ! -f "/etc/cachepilot/system.yaml" ] && [ -f "$SCRIPT_DIR/config/system.yaml" ] && cp "$SCRIPT_DIR/config/system.yaml" /etc/cachepilot/
-[ ! -f "/etc/cachepilot/api.yaml" ] && [ -f "$SCRIPT_DIR/config/api.yaml" ] && cp "$SCRIPT_DIR/config/api.yaml" /etc/cachepilot/
-[ ! -f "/etc/cachepilot/frontend.yaml" ] && [ -f "$SCRIPT_DIR/config/frontend.yaml" ] && cp "$SCRIPT_DIR/config/frontend.yaml" /etc/cachepilot/
-
-mkdir -p "$INSTALL_DIR/config" 2>/dev/null || true
-cat > "$INSTALL_DIR/config/README.txt" << 'EOF'
-Configuration files are in /etc/cachepilot/
-See /etc/cachepilot/ for all configuration files.
-EOF
-
+# Ensure permissions are correct
 chmod +x "$INSTALL_DIR/cli/cachepilot" "$INSTALL_DIR"/cli/lib/*.sh "$INSTALL_DIR"/scripts/*.sh "$INSTALL_DIR"/install/scripts/*.sh 2>/dev/null || true
-echo -e "${GREEN}✓${NC} Files updated"
+echo -e "${GREEN}✓${NC} Permissions updated"
 echo ""
 
 echo -e "${BLUE}[6/11]${NC} Updating Python dependencies..."
@@ -181,9 +232,7 @@ echo ""
 echo -e "${BLUE}[9/11]${NC} Updating frontend..."
 
 FRONTEND_UPDATED=false
-if [ -d "$SCRIPT_DIR/frontend" ]; then
-    cp -r "$SCRIPT_DIR/frontend"/* "$INSTALL_DIR/frontend/" 2>/dev/null || true
-    
+if [ -d "$INSTALL_DIR/frontend" ]; then
     if command -v node &> /dev/null && command -v npm &> /dev/null; then
         if [ -d "$INSTALL_DIR/frontend/node_modules" ] || [ -d "$INSTALL_DIR/frontend/dist" ]; then
             [ -x "$INSTALL_DIR/install/scripts/setup-frontend.sh" ] && bash "$INSTALL_DIR/install/scripts/setup-frontend.sh" && FRONTEND_UPDATED=true
@@ -307,6 +356,12 @@ echo "Frontend: Updated at $INSTALL_DIR/frontend/dist/"
 fi
 
 echo ""
-echo "Backup: $BACKUP_DIR"
-echo "Remove after verification: rm -rf $BACKUP_DIR"
+if [ "$IS_GIT_BASED" = true ]; then
+    echo "Git Status: git log --oneline -5"
+    echo "Rollback: git reset --hard <commit>"
+    echo "Stashed changes: git stash list"
+else
+    echo "Backup: $BACKUP_DIR"
+    echo "Remove after verification: rm -rf $BACKUP_DIR"
+fi
 echo ""
