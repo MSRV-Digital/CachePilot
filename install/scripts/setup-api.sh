@@ -154,6 +154,10 @@ if [ -f "$SYSTEMD_SERVICE" ]; then
         sleep 2
         if systemctl is-active --quiet cachepilot-api.service; then
             echo -e "${GREEN}✓${NC} Service running"
+            echo ""
+            echo -e "${YELLOW}Note:${NC} API keys are cached for 30 seconds."
+            echo "      The initial API key is immediately available."
+            echo "      New keys generated later may need: cachepilot api restart"
         else
             echo -e "${RED}✗${NC} Service failed to start"
             echo "Logs: journalctl -u cachepilot-api.service -n 50"

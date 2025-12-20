@@ -152,6 +152,10 @@ print(key)
     echo "To use this key, include it in the X-API-Key header:"
     echo "  curl -H 'X-API-Key: ${API_KEY}' http://localhost:8000/api/v1/tenants"
     echo ""
+    echo "⚠  IMPORTANT: The API caches keys for 30 seconds."
+    echo "   Wait 30 seconds OR restart the API for immediate use:"
+    echo "   cachepilot api restart"
+    echo ""
     
     log_audit "system" "api_key_generated" "system" "{\"key_name\":\"${key_name}\"}"
 }
