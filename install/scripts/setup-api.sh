@@ -105,7 +105,7 @@ EOF
     chmod 600 "$API_KEYS_FILE"
     echo -e "${GREEN}✓${NC} API key generated"
     
-    # Save API key to secure temporary file instead of printing to console
+    # Save API key to secure temporary file as backup
     KEY_FILE="/root/.cachepilot-api-key"
     echo "$API_KEY" > "$KEY_FILE"
     chmod 600 "$KEY_FILE"
@@ -115,16 +115,17 @@ EOF
     echo -e "${YELLOW}⚠  SECURITY: API Key Information${NC}"
     echo -e "${YELLOW}========================================${NC}"
     echo ""
-    echo -e "Your API key has been saved to: ${BLUE}$KEY_FILE${NC}"
+    echo -e "Your API key: ${GREEN}$API_KEY${NC}"
     echo ""
     echo -e "${RED}IMPORTANT SECURITY NOTES:${NC}"
-    echo "  1. Copy the key to a secure password manager"
-    echo "  2. Delete the key file after copying: rm $KEY_FILE"
-    echo "  3. Never share installation logs or screenshots"
-    echo "  4. Consider rotating the key after initial setup"
+    echo "  1. Copy this key to a secure password manager NOW"
+    echo "  2. Also saved to: $KEY_FILE (for backup)"
+    echo "  3. NEVER share installation logs or screenshots publicly"
+    echo "  4. Delete key file after copying: rm $KEY_FILE"
+    echo "  5. Consider rotating the key after initial setup"
     echo ""
-    echo -e "To view your key: ${BLUE}cat $KEY_FILE${NC}"
-    echo -e "To rotate the key later: ${BLUE}cachepilot api key generate <name>${NC}"
+    echo -e "To rotate the key: ${BLUE}cachepilot api key generate <name>${NC}"
+    echo -e "${YELLOW}========================================${NC}"
     echo ""
 else
     chmod 600 "$API_KEYS_FILE"
