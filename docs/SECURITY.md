@@ -55,6 +55,28 @@ CachePilot makes significant system modifications:
 3. Use Ubuntu 22.04+ or Debian 12+ only
 4. Plan rollback procedure
 
+### ⚠️ CRITICAL: Installation Security
+
+**NEVER share installation logs, screenshots, or terminal output publicly!**
+
+During installation, sensitive information is displayed that could compromise your system:
+- API keys are generated and saved to `/root/.cachepilot-api-key`
+- System configuration details are shown
+- Network information may be exposed
+
+**After Installation:**
+1. **Immediately copy** your API key to a secure password manager
+2. **Delete the temporary key file:** `rm /root/.cachepilot-api-key`
+3. **Clear your shell history** if you viewed the key: `history -c`
+4. **Never commit** the key file to version control
+5. **Consider rotating** the key after initial setup for additional security
+
+**If you accidentally exposed your API key:**
+1. Generate a new key: `cachepilot api key generate production`
+2. Update your applications with the new key
+3. Revoke the old key: `cachepilot api key revoke admin`
+4. Restart the API: `systemctl restart cachepilot-api`
+
 ## Essential Security Configuration
 
 ### 1. API Security

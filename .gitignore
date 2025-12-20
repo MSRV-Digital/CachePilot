@@ -4,6 +4,7 @@
 # Secrets & API Keys
 # ===================================
 config/api-keys.json
+.cachepilot-api-key
 *.pem
 *.key
 *.csr

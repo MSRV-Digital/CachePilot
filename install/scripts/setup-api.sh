@@ -88,23 +88,43 @@ mkdir -p "/etc/cachepilot"
 
 if [ ! -f "$API_KEYS_FILE" ]; then
     API_KEY=$(openssl rand -hex 32)
+    API_KEY_HASH=$(echo -n "$API_KEY" | sha256sum | awk '{print $1}')
     
     cat > "$API_KEYS_FILE" << EOF
 {
-  "keys": {
-    "$API_KEY": {
-      "name": "admin",
-      "created": "$(date -Iseconds)",
-      "permissions": ["read", "write", "admin"]
-    }
+  "$API_KEY_HASH": {
+    "name": "admin",
+    "permissions": ["*"],
+    "created": $(date +%s.%N),
+    "last_used": null,
+    "request_count": 0
   }
 }
 EOF
     
     chmod 600 "$API_KEYS_FILE"
     echo -e "${GREEN}✓${NC} API key generated"
+    
+    # Save API key to secure temporary file instead of printing to console
+    KEY_FILE="/root/.cachepilot-api-key"
+    echo "$API_KEY" > "$KEY_FILE"
+    chmod 600 "$KEY_FILE"
+    
     echo ""
-    echo "API Key (save securely): $API_KEY"
+    echo -e "${YELLOW}========================================${NC}"
+    echo -e "${YELLOW}⚠  SECURITY: API Key Information${NC}"
+    echo -e "${YELLOW}========================================${NC}"
+    echo ""
+    echo -e "Your API key has been saved to: ${BLUE}$KEY_FILE${NC}"
+    echo ""
+    echo -e "${RED}IMPORTANT SECURITY NOTES:${NC}"
+    echo "  1. Copy the key to a secure password manager"
+    echo "  2. Delete the key file after copying: rm $KEY_FILE"
+    echo "  3. Never share installation logs or screenshots"
+    echo "  4. Consider rotating the key after initial setup"
+    echo ""
+    echo -e "To view your key: ${BLUE}cat $KEY_FILE${NC}"
+    echo -e "To rotate the key later: ${BLUE}cachepilot api key generate <name>${NC}"
     echo ""
 else
     chmod 600 "$API_KEYS_FILE"

@@ -28,7 +28,9 @@ security:
   # IMPORTANT: Configure this to match your deployment domain(s)
   # Using wildcard ["*"] is INSECURE and should only be used for local development
   # Production deployments MUST specify exact origins
-  cors_origins: []
+  cors_origins:
+    - "https://redis01.msrv.io"
+    - "http://localhost:5173"
     # Examples - replace with your actual domain(s):
     # - "https://redis-manager.yourdomain.com"
     # - "https://admin.yourdomain.com"

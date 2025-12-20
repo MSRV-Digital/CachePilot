@@ -53,6 +53,24 @@ See [docs/SECURITY.md](docs/SECURITY.md) for complete security guidelines.
 
 ---
 
+**🔒 INSTALLATION SECURITY WARNING**
+
+**NEVER share installation logs, screenshots, or terminal output publicly!**
+
+During installation, sensitive information is generated that could compromise your system if exposed:
+- API keys are saved to `/root/.cachepilot-api-key` (temporary file)
+- System and network configuration details are displayed
+
+**After installation, you MUST:**
+1. Copy your API key to a secure password manager
+2. Delete the temporary key file: `rm /root/.cachepilot-api-key`
+3. Never commit or share the key file
+4. Consider rotating the key after initial setup
+
+**If you accidentally exposed your API key:** See [docs/SECURITY.md](docs/SECURITY.md) for key rotation instructions.
+
+---
+
 ## System Requirements
 
 ### Supported Operating Systems
