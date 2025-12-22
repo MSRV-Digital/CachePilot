@@ -188,7 +188,13 @@ System Management:
   system rollback                 Rollback to previous Git commit
 
 Tenant Management:
-  new <tenant>                    Create new Redis instance
+  new <tenant> [mem] [docker] [security] [password] [persistence]
+                                  Create new Redis instance
+                                  mem: maxmemory MB (default: 256)
+                                  docker: container limit MB (default: 512)
+                                  security: tls-only|dual-mode|plain-only (default: tls-only)
+                                  password: custom password (default: auto-generated)
+                                  persistence: memory-only|persistent (default: memory-only)
   rm <tenant>                     Remove instance and all data
   start <tenant>                  Start instance
   stop <tenant>                   Stop instance
@@ -241,12 +247,20 @@ API Management:
   api key revoke <name>           Revoke an API key
 
 Examples:
-  cachepilot new myclient          Create new Redis instance for 'myclient'
+  cachepilot new myclient          Create new Redis instance (memory-only, default)
+  cachepilot new myclient 512 1024 dual-mode
+                                  Create with 512MB, dual-mode security
+  cachepilot new myclient 256 512 tls-only "" persistent
+                                  Create with persistent disk storage (slower, survives restarts)
   cachepilot set-mem myclient 512 1024
                                   Set Redis limit to 512MB, Docker to 1024MB
   cachepilot insight-enable myclient
                                   Enable RedisInsight for 'myclient'
   cachepilot stats                 Show global statistics
+
+Performance Modes:
+  memory-only: 1-5ms latency, no disk writes (recommended, default)
+  persistent:  100-200ms latency, data survives restarts
 
 For more information, visit: https://github.com/MSRV-Digital/CachePilot
 EOF

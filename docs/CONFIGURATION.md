@@ -161,11 +161,28 @@ Default values for new tenant creation.
 |-----|------|-------------|-----|-----|-------------|
 | `redis_memory_mb` | integer | Redis maxmemory | 64 | 16384 | 256-512 |
 | `docker_memory_mb` | integer | Docker container limit | 128 | 32768 | 512-1024 |
+| `security_mode` | string | Default security mode | - | - | tls-only |
+| `persistence_mode` | string | Default persistence mode | - | - | memory-only |
 
 **Memory Guidelines:**
 - `docker_memory_mb` should be at least 2x `redis_memory_mb`
 - Leave overhead for Redis overhead and system buffers
 - Consider host system total memory
+
+**Security Modes:**
+- `tls-only`: Most secure, requires CA certificate (recommended)
+- `dual-mode`: Both TLS and Plain-Text available
+- `plain-only`: Password-only, no certificate required
+
+**Persistence Modes (v2.2+):**
+- `memory-only`: Pure in-memory, no disk writes, 1-5ms latency (recommended, default)
+  - Data is lost on restart
+  - Use on-demand backups if needed
+  - Best for caches and ephemeral data
+- `persistent`: Traditional RDB + AOF persistence, 100-200ms latency
+  - Data survives container restarts
+  - Automatic disk snapshots and append-only file
+  - Use for data that must persist
 
 #### organization
 

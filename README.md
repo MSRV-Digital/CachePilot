@@ -101,6 +101,7 @@ The installation script will check for and install missing dependencies, but you
 - **Multi-Tenant Isolation:** Dedicated Docker containers for data and resource separation
 - **TLS Encryption:** Automatic certificate generation from local CA
 - **Resource Management:** Per-tenant memory limits for Redis and Docker
+- **Performance Modes:** Memory-only (1-5ms, default) or Persistent (100-200ms, data survives restarts)
 - **CLI:** Single command for tenant lifecycle management
 - **Optional RedisInsight:** Web interface with auto-configuration
 
@@ -201,10 +202,22 @@ See [docs/GIT-WORKFLOW.md](docs/GIT-WORKFLOW.md) for complete Git workflow docum
 
 ### Quick Start
 
-- **Create your first tenant:**
+- **Create your first tenant (ultra-fast, memory-only):**
   ```bash
   cachepilot new my-first-client
   ```
+  
+  This creates a Redis instance with:
+  - **Memory-only mode** (default): 1-5ms latency, no disk writes
+  - Auto-generated secure password
+  - TLS encryption enabled
+  
+- **Create with persistent storage (optional):**
+  ```bash
+  cachepilot new my-client 256 512 dual-mode "" persistent
+  ```
+  
+  Use persistent mode when you need data to survive restarts (accepts 100-200ms latency).
 
 - **View the list of all tenants:**
   ```bash

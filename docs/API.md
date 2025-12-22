@@ -160,7 +160,8 @@ POST /api/v1/tenants
   "maxmemory_mb": 256,
   "docker_limit_mb": 512,
   "password": "optional-custom-password",
-  "security_mode": "tls-only"
+  "security_mode": "tls-only",
+  "persistence_mode": "memory-only"
 }
 ```
 
@@ -168,6 +169,14 @@ POST /api/v1/tenants
 - `tls-only`: Default, requires CA certificate (most secure)
 - `dual-mode`: Both TLS and Plain-Text available
 - `plain-only`: Password-only, no certificate required
+
+**Persistence Modes (v2.2+):**
+- `memory-only`: Pure in-memory, no disk writes, 1-5ms latency (default, recommended)
+  - Data lost on restart - use on-demand backups if needed
+  - Ideal for caches and ephemeral data
+- `persistent`: Traditional RDB + AOF persistence, 100-200ms latency
+  - Data survives container restarts
+  - Use for data that must persist
 
 **Response:**
 ```json
