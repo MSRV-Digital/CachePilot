@@ -31,7 +31,8 @@ class CommandExecutor:
         "monitoring", "metrics",
         "config", "get", "set",
         "redis", "cli", "info", "restart", "start", "stop",
-        "new", "rm", "set-memory", "rotate", "handover", "set-access"
+        "new", "rm", "set-memory", "rotate", "handover", "set-access",
+        "insight-enable", "insight-disable", "insight-status"
     }
     
     def __init__(self, cli_path: str = None):

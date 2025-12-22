@@ -147,6 +147,25 @@ export class ApiClient {
     });
   }
 
+  // RedisInsight operations
+  async enableRedisInsight(name: string): Promise<any> {
+    const response = await this.client.post<ApiResponse<any>>(
+      `/tenants/${name}/redisinsight/enable`
+    );
+    return response.data.data;
+  }
+
+  async disableRedisInsight(name: string): Promise<void> {
+    await this.client.delete<ApiResponse<void>>(`/tenants/${name}/redisinsight`);
+  }
+
+  async getRedisInsightStatus(name: string): Promise<any> {
+    const response = await this.client.get<ApiResponse<any>>(
+      `/tenants/${name}/redisinsight`
+    );
+    return response.data.data;
+  }
+
   // Monitoring operations
   async fetchHealth(): Promise<HealthStatus> {
     const response = await this.client.get<ApiResponse<HealthStatus>>('/monitoring/health');

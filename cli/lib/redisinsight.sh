@@ -67,13 +67,21 @@ enable_redisinsight() {
     log "Creating nginx configuration..."
     create_nginx_config "$tenant" "$insight_port" "$insight_port"
     
-    create_docker_compose_with_insight "$tenant" "$PORT" "$PASSWORD" "$MAXMEMORY" "$DOCKER_LIMIT" "$insight_port"
+    # Use PORT_TLS if available, otherwise fall back to PORT or PORT_PLAIN
+    local redis_port="${PORT_TLS:-${PORT:-${PORT_PLAIN}}}"
+    
+    create_docker_compose_with_insight "$tenant" "$redis_port" "$PASSWORD" "$MAXMEMORY" "$DOCKER_LIMIT" "$insight_port"
     
     log "Starting containers..."
     cd "$tenant_dir"
     docker-compose up -d
     
     log "Waiting for containers to start..."
+    sleep 5
+    
+    # Redis connection is automatically configured via environment variables
+    # No manual database configuration needed
+    log "RedisInsight will auto-configure Redis connection from environment variables"
     sleep 3
     
     if docker ps --format '{{.Names}}' | grep -q "^nginx-${tenant}$"; then
@@ -124,7 +132,10 @@ disable_redisinsight() {
     sed -i '/^INSIGHT_USER=/d' "${tenant_dir}/config.env"
     sed -i '/^INSIGHT_PASS=/d' "${tenant_dir}/config.env"
     
-    create_docker_compose "$tenant" "$PORT" "$PASSWORD" "$MAXMEMORY" "$DOCKER_LIMIT"
+    # Use PORT_TLS if available, otherwise fall back to PORT or PORT_PLAIN
+    local redis_port="${PORT_TLS:-${PORT:-${PORT_PLAIN}}}"
+    
+    create_docker_compose "$tenant" "$redis_port" "$PASSWORD" "$MAXMEMORY" "$DOCKER_LIMIT"
     
     success "RedisInsight disabled for tenant: $tenant"
 }
@@ -138,6 +149,13 @@ create_docker_compose_with_insight() {
     local insight_port="${6}"
     local tenant_dir="${TENANTS_DIR}/${tenant}"
     
+    # Load tenant config to get security mode
+    local security_mode="tls-only"
+    if [[ -f "${tenant_dir}/config.env" ]]; then
+        source "${tenant_dir}/config.env"
+        security_mode="${SECURITY_MODE:-tls-only}"
+    fi
+    
     local bind_ip="${INTERNAL_IP}"
     if [[ "${bind_ip}" == "localhost" ]]; then
         bind_ip="127.0.0.1"
@@ -146,6 +164,40 @@ create_docker_compose_with_insight() {
     local public_ip="${PUBLIC_IP}"
     if [[ "${public_ip}" == "localhost" ]]; then
         public_ip="127.0.0.1"
+    fi
+    
+    # Determine if TLS should be used for RedisInsight connection
+    local use_tls="false"
+    if [[ "$security_mode" == "tls-only" ]] || [[ "$security_mode" == "dual-mode" ]]; then
+        use_tls="true"
+    fi
+    
+    # Determine Redis internal port based on security mode
+    # TLS-only and dual-mode: Redis runs on internal port 6380 (TLS)
+    # Plain-only: Redis runs on internal port 6379 (Plain-Text)
+    local redis_internal_port="6379"
+    if [[ "$use_tls" == "true" ]]; then
+        redis_internal_port="6380"
+    fi
+    
+    # Build RedisInsight environment variables based on TLS mode
+    local redisinsight_env=""
+    if [[ "$use_tls" == "true" ]]; then
+        redisinsight_env="      - RITRUSTEDORIGINS=https://${PUBLIC_IP}:${insight_port}
+      - RI_REDIS_HOST=redis-${tenant}
+      - RI_REDIS_PORT=${redis_internal_port}
+      - RI_REDIS_ALIAS=${tenant}
+      - RI_REDIS_PASSWORD=${password}
+      - RI_REDIS_TLS=true
+      - RI_REDIS_TLS_CA_PATH=/certs/ca.crt
+      - RI_REDIS_TLS_CERT_PATH=/certs/redis.crt
+      - RI_REDIS_TLS_KEY_PATH=/certs/redis.key"
+    else
+        redisinsight_env="      - RITRUSTEDORIGINS=https://${PUBLIC_IP}:${insight_port}
+      - RI_REDIS_HOST=redis-${tenant}
+      - RI_REDIS_PORT=${redis_internal_port}
+      - RI_REDIS_ALIAS=${tenant}
+      - RI_REDIS_PASSWORD=${password}"
     fi
     
     cat > "${tenant_dir}/docker-compose.yml" << EOF
@@ -185,15 +237,7 @@ services:
     depends_on:
       - redis
     environment:
-      - RITRUSTEDORIGINS=https://${PUBLIC_IP}:${insight_port}
-      - RI_REDIS_HOST=redis-${tenant}
-      - RI_REDIS_PORT=6379
-      - RI_REDIS_ALIAS=${tenant}
-      - RI_REDIS_PASSWORD=${password}
-      - RI_REDIS_TLS=true
-      - RI_REDIS_TLS_CA_PATH=/certs/ca.crt
-      - RI_REDIS_TLS_CERT_PATH=/certs/redis.crt
-      - RI_REDIS_TLS_KEY_PATH=/certs/redis.key
+${redisinsight_env}
 
   nginx:
     image: nginx:alpine

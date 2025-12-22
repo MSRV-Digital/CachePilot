@@ -240,6 +240,108 @@ POST /api/v1/tenants/{tenant_name}/rotate-password
 }
 ```
 
+#### Get Handover Information
+```http
+GET /api/v1/tenants/{tenant_name}/handover
+```
+
+**Response includes connection details, CA certificate, and WordPress configuration.**
+
+#### Regenerate Handover Package
+```http
+POST /api/v1/tenants/{tenant_name}/handover/regenerate
+```
+
+#### Change Security Mode
+```http
+POST /api/v1/tenants/{tenant_name}/security-mode?security_mode=dual-mode
+```
+
+**Query Parameters:**
+- `security_mode` (string): New security mode (tls-only, dual-mode, plain-only)
+
+### RedisInsight Management (v2.1.2+)
+
+RedisInsight provides a web-based GUI for managing and monitoring Redis instances.
+
+#### Enable RedisInsight
+```http
+POST /api/v1/tenants/{tenant_name}/redisinsight/enable
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "RedisInsight enabled for tenant client1",
+  "data": {
+    "tenant": "client1",
+    "redisinsight": {
+      "enabled": true,
+      "port": 8300,
+      "public_url": "https://your-server:8300",
+      "internal_url": "https://internal-ip:8300",
+      "username": "admin",
+      "password": "generated-password",
+      "status": "running"
+    }
+  }
+}
+```
+
+**Features:**
+- Automatic Redis connection configuration (TLS and Plain-Text supported)
+- HTTPS with self-signed certificate
+- Basic authentication with nginx
+- Port range: 8300-8399
+
+#### Get RedisInsight Status
+```http
+GET /api/v1/tenants/{tenant_name}/redisinsight
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "RedisInsight status retrieved",
+  "data": {
+    "tenant": "client1",
+    "redisinsight": {
+      "enabled": true,
+      "port": 8300,
+      "public_url": "https://your-server:8300",
+      "internal_url": "https://internal-ip:8300",
+      "username": "admin",
+      "password": "admin-password",
+      "status": "running"
+    }
+  }
+}
+```
+
+#### Disable RedisInsight
+```http
+DELETE /api/v1/tenants/{tenant_name}/redisinsight
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "RedisInsight disabled for tenant client1",
+  "data": {
+    "tenant": "client1"
+  }
+}
+```
+
+**Note:**
+- RedisInsight uses a self-signed HTTPS certificate - browsers will show a security warning
+- The Redis connection is automatically configured in RedisInsight for immediate use
+- Login credentials are automatically generated
+- Supports both TLS-enabled and plain-text Redis instances
+
 ### Monitoring
 
 #### Health Check

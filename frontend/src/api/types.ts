@@ -96,3 +96,18 @@ export interface MonitoringData {
     uptime_seconds: number;
   }[];
 }
+
+export interface RedisInsightStatus {
+  enabled: boolean;
+  port?: number;
+  public_url?: string;
+  internal_url?: string;
+  username?: string;
+  password?: string;
+  status?: string;
+}
+
+export interface RedisInsightResponse {
+  tenant: string;
+  redisinsight: RedisInsightStatus;
+}

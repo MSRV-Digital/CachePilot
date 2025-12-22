@@ -119,3 +119,16 @@ class ApiKeyResponse(BaseModel):
     name: str
     created: str
     permissions: List[str]
+
+class RedisInsightStatus(BaseModel):
+    enabled: bool
+    port: Optional[int] = None
+    public_url: Optional[str] = None
+    internal_url: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+    status: Optional[str] = None
+
+class RedisInsightResponse(BaseModel):
+    tenant: str
+    redisinsight: RedisInsightStatus

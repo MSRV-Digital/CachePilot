@@ -7,32 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- **Memory-Only Persistence Mode**: Pure in-memory Redis operation for ultra-low latency (1-5ms vs 100-200ms)
-  - New `persistence_mode` configuration option: `memory-only` (default) or `persistent`
-  - Eliminates disk I/O bottleneck caused by AOF/RDB writes
-  - Configurable per tenant during creation
-  - Automatic migration for existing tenants (defaults to `persistent` to maintain current behavior)
-- **Redis Latency Testing Tool**: Python-based benchmark script for performance validation
-  - `scripts/test-redis-latency.py`: Measures PING, GET, SET operations
-  - Supports both TLS and Plain-Text connections
-  - Outputs min/avg/p50/p95/p99/max statistics
-  - Automatic tenant config loading
-
 ### Fixed
-- **Dual-Mode Port Mapping**: Fixed missing TLS port in docker-compose.yml for dual-mode tenants
-  - Both TLS (e.g., 7301:6380) and Plain-Text (e.g., 7601:6379) ports now correctly mapped
-  - Affects tenants created between v2.1.2-Beta and this release
-  - Existing tenants: Run upgrade script or manually add missing port to docker-compose.yml
-- **API/Frontend Consistency**: Added `persistence_mode` support across entire stack
-  - API: `PersistenceMode` enum and field added to `TenantCreateRequest`
-  - Frontend: Persistence mode dropdown in Create Tenant form
-  - Frontend: Persistence mode display in Tenant Detail view
-  - CLI, API, and Frontend now fully consistent
+- **RedisInsight Integration**: Fixed duplicate connections and configuration issues
+  - Removed dual configuration approach (environment variables + database manipulation)
+  - Fixed TLS configuration for plain-only tenants
+  - Fixed port configuration: TLS uses port 6380, plain-only uses port 6379
+  - Migration: Disable/re-enable RedisInsight to apply fix
 
-### Changed
-- **System Configuration**: Added `persistence_mode: memory-only` to default settings
-- **Upgrade Script**: Now migrates existing tenants to include `PERSISTENCE_MODE=persistent`
+### Added
+- **RedisInsight API Integration**: Complete REST API and frontend support for RedisInsight management
+- **Memory-Only Persistence Mode**: In-memory operation for ultra-low latency (1-5ms vs 100-200ms)
+- **Redis Latency Testing Tool**: Performance validation script (`scripts/test-redis-latency.py`)
 
 ## [2.1.2-Beta] - 2025-12-22
 

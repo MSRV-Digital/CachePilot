@@ -102,3 +102,24 @@ async def change_security_mode(tenant_name: str, security_mode: str, api_key: di
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
+
+@router.post("/{tenant_name}/redisinsight/enable", response_model=ApiResponse)
+async def enable_redisinsight(tenant_name: str, api_key: dict = Depends(get_api_key)):
+    result = tenant_service.enable_redisinsight(tenant_name)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+@router.delete("/{tenant_name}/redisinsight", response_model=ApiResponse)
+async def disable_redisinsight(tenant_name: str, api_key: dict = Depends(get_api_key)):
+    result = tenant_service.disable_redisinsight(tenant_name)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+@router.get("/{tenant_name}/redisinsight", response_model=ApiResponse)
+async def get_redisinsight_status(tenant_name: str, api_key: dict = Depends(get_api_key)):
+    result = tenant_service.get_redisinsight_status(tenant_name)
+    if not result["success"]:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result

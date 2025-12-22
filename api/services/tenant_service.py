@@ -608,6 +608,199 @@ Email: {contact_email}
                 "error": stderr or stdout or "Mode change failed"
             }
     
+    def enable_redisinsight(self, name: str) -> Dict[str, Any]:
+        """Enable RedisInsight for a tenant"""
+        try:
+            validated_name = sanitize_tenant_name(name)
+        except ValidationError as e:
+            logger.warning(f"RedisInsight enable validation failed: {e}")
+            return {
+                "success": False,
+                "message": "Invalid tenant name",
+                "error": str(e)
+            }
+        
+        success, stdout, stderr = executor.execute("insight-enable", validated_name)
+        
+        if success:
+            # Parse output to get credentials
+            status_info = self._parse_redisinsight_output(stdout)
+            return {
+                "success": True,
+                "message": f"RedisInsight enabled for tenant {name}",
+                "data": {
+                    "tenant": name,
+                    "redisinsight": status_info
+                }
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Failed to enable RedisInsight",
+                "error": stderr or stdout or "Enable failed"
+            }
+    
+    def disable_redisinsight(self, name: str) -> Dict[str, Any]:
+        """Disable RedisInsight for a tenant"""
+        try:
+            validated_name = sanitize_tenant_name(name)
+        except ValidationError as e:
+            logger.warning(f"RedisInsight disable validation failed: {e}")
+            return {
+                "success": False,
+                "message": "Invalid tenant name",
+                "error": str(e)
+            }
+        
+        success, stdout, stderr = executor.execute("insight-disable", validated_name)
+        
+        if success:
+            return {
+                "success": True,
+                "message": f"RedisInsight disabled for tenant {name}",
+                "data": {"tenant": name}
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Failed to disable RedisInsight",
+                "error": stderr or stdout or "Disable failed"
+            }
+    
+    def get_redisinsight_status(self, name: str) -> Dict[str, Any]:
+        """Get RedisInsight status for a tenant"""
+        try:
+            validated_name = sanitize_tenant_name(name)
+        except ValidationError as e:
+            logger.warning(f"RedisInsight status validation failed: {e}")
+            return {
+                "success": False,
+                "message": "Invalid tenant name",
+                "error": str(e)
+            }
+        
+        success, stdout, stderr = executor.execute("insight-status", validated_name)
+        
+        if success:
+            status_info = self._parse_redisinsight_status(stdout)
+            return {
+                "success": True,
+                "message": "RedisInsight status retrieved",
+                "data": {
+                    "tenant": name,
+                    "redisinsight": status_info
+                }
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Failed to get RedisInsight status",
+                "error": stderr or stdout or "Status retrieval failed"
+            }
+    
+    def _parse_redisinsight_output(self, output: str) -> Dict[str, Any]:
+        """Parse RedisInsight enable output to extract credentials"""
+        # Strip ANSI escape codes
+        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+        output = ansi_escape.sub('', output)
+        
+        result = {
+            "enabled": True,
+            "port": None,
+            "public_url": None,
+            "internal_url": None,
+            "username": None,
+            "password": None,
+            "status": "running"
+        }
+        
+        lines = output.split('\n')
+        for line in lines:
+            line = line.strip()
+            if 'Public URL:' in line or 'Public:' in line:
+                url = line.split(':', 1)[1].strip() if ':' in line else None
+                result["public_url"] = url
+                if url and ':' in url:
+                    try:
+                        result["port"] = int(url.split(':')[-1])
+                    except:
+                        pass
+            elif 'Internal URL:' in line or 'Internal:' in line:
+                result["internal_url"] = line.split(':', 1)[1].strip() if ':' in line else None
+            elif 'Username:' in line:
+                result["username"] = line.split(':', 1)[1].strip() if ':' in line else None
+            elif 'Password:' in line:
+                result["password"] = line.split(':', 1)[1].strip() if ':' in line else None
+        
+        return result
+    
+    def _parse_redisinsight_status(self, output: str) -> Dict[str, Any]:
+        """Parse RedisInsight status output"""
+        # Strip ANSI escape codes
+        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+        output = ansi_escape.sub('', output)
+        
+        result = {
+            "enabled": False,
+            "port": None,
+            "public_url": None,
+            "internal_url": None,
+            "username": None,
+            "password": None,
+            "status": "stopped"
+        }
+        
+        # Check if disabled
+        if "DISABLED" in output.upper():
+            return result
+        
+        result["enabled"] = True
+        
+        lines = output.split('\n')
+        in_login_credentials = False
+        in_redis_connection = False
+        
+        for line in lines:
+            line_stripped = line.strip()
+            
+            # Track which section we're in
+            if 'Login Credentials:' in line_stripped:
+                in_login_credentials = True
+                in_redis_connection = False
+                continue
+            elif 'Redis Connection' in line_stripped:
+                in_login_credentials = False
+                in_redis_connection = True
+                continue
+            elif line_stripped and not line.startswith('  '):
+                # New section started
+                in_login_credentials = False
+                in_redis_connection = False
+            
+            # Parse values
+            if 'Status:' in line_stripped:
+                if 'RUNNING' in line_stripped.upper():
+                    result["status"] = "running"
+                elif 'STOPPED' in line_stripped.upper():
+                    result["status"] = "stopped"
+            elif 'Public:' in line_stripped:
+                url = line_stripped.split(':', 1)[1].strip() if ':' in line_stripped else None
+                result["public_url"] = url
+                if url and ':' in url:
+                    try:
+                        result["port"] = int(url.split(':')[-1])
+                    except:
+                        pass
+            elif 'Internal:' in line_stripped:
+                result["internal_url"] = line_stripped.split(':', 1)[1].strip() if ':' in line_stripped else None
+            elif 'Username:' in line_stripped and in_login_credentials:
+                result["username"] = line_stripped.split(':', 1)[1].strip() if ':' in line_stripped else None
+            elif 'Password:' in line_stripped and in_login_credentials:
+                # Only take password from Login Credentials section, not Redis Connection section
+                result["password"] = line_stripped.split(':', 1)[1].strip() if ':' in line_stripped else None
+        
+        return result
+    
     def _parse_status(self, output: str) -> Dict[str, Any]:
         # Strip ANSI escape codes
         ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')

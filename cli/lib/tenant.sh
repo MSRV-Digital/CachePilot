@@ -276,7 +276,15 @@ set_memory_limits() {
     local port_plain="${PORT_PLAIN:-}"
     local security_mode="${SECURITY_MODE:-tls-only}"
     
-    create_docker_compose "$tenant" "$port_tls" "$PASSWORD" "$maxmemory" "$docker_limit" "$security_mode" "$port_plain"
+    # Check if RedisInsight is enabled
+    if [[ -n "${INSIGHT_PORT:-}" ]] && [[ "${INSIGHT_PORT:-0}" != "0" ]]; then
+        # RedisInsight is enabled - use extended docker-compose
+        log "RedisInsight is enabled - preserving configuration..."
+        create_docker_compose_with_insight "$tenant" "$port_tls" "$PASSWORD" "$maxmemory" "$docker_limit" "$INSIGHT_PORT"
+    else
+        # Normal docker-compose without RedisInsight
+        create_docker_compose "$tenant" "$port_tls" "$PASSWORD" "$maxmemory" "$docker_limit" "$security_mode" "$port_plain"
+    fi
     
     log "Restarting container..."
     restart_container "$tenant"
@@ -307,10 +315,25 @@ rotate_password() {
     local port_plain="${PORT_PLAIN:-}"
     local security_mode="${SECURITY_MODE:-tls-only}"
     
-    create_docker_compose "$tenant" "$port_tls" "$new_password" "$MAXMEMORY" "$DOCKER_LIMIT" "$security_mode" "$port_plain"
+    # Check if RedisInsight is enabled
+    if [[ -n "${INSIGHT_PORT:-}" ]] && [[ "${INSIGHT_PORT:-0}" != "0" ]]; then
+        # RedisInsight is enabled - use extended docker-compose
+        log "RedisInsight is enabled - preserving configuration..."
+        create_docker_compose_with_insight "$tenant" "$port_tls" "$new_password" "$MAXMEMORY" "$DOCKER_LIMIT" "$INSIGHT_PORT"
+        
+        # Update RedisInsight database with new password after container restart
+        local update_db=true
+    else
+        # Normal docker-compose without RedisInsight
+        create_docker_compose "$tenant" "$port_tls" "$new_password" "$MAXMEMORY" "$DOCKER_LIMIT" "$security_mode" "$port_plain"
+        local update_db=false
+    fi
     
     log "Restarting container..."
     restart_container "$tenant"
+    
+    # RedisInsight will automatically pick up the new password from environment variables
+    # No manual database configuration needed after password rotation
     
     log "Regenerating handover package..."
     generate_handover "$tenant"
@@ -396,7 +419,24 @@ set_access_mode() {
     
     # Regenerate Docker Compose configuration
     log "Updating Docker Compose configuration..."
-    create_docker_compose "$tenant" "$port_tls" "$PASSWORD" "$MAXMEMORY" "$DOCKER_LIMIT" "$new_mode" "$port_plain"
+    
+    # Check if RedisInsight is enabled
+    if [[ -n "${INSIGHT_PORT:-}" ]] && [[ "${INSIGHT_PORT:-0}" != "0" ]]; then
+        # RedisInsight is enabled - use extended docker-compose
+        log "RedisInsight is enabled - preserving configuration..."
+        create_docker_compose_with_insight "$tenant" "$port_tls" "$PASSWORD" "$MAXMEMORY" "$DOCKER_LIMIT" "$INSIGHT_PORT"
+        
+        # Delete RedisInsight database to force re-initialization with new security mode
+        log "Resetting RedisInsight database for new security mode..."
+        local ri_db="${tenant_dir}/redisinsight-data/redisinsight.db"
+        if [[ -f "$ri_db" ]]; then
+            rm -f "$ri_db"
+            log "RedisInsight database reset - will be recreated with new configuration on start"
+        fi
+    else
+        # Normal docker-compose without RedisInsight
+        create_docker_compose "$tenant" "$port_tls" "$PASSWORD" "$MAXMEMORY" "$DOCKER_LIMIT" "$new_mode" "$port_plain"
+    fi
     
     # Restart container
     log "Restarting container..."

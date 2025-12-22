@@ -15,9 +15,209 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useTenant, useStartTenant, useStopTenant, useRestartTenant, useDeleteTenant } from '../hooks/useTenants';
 import { useCreateBackup, useListBackups, useDeleteBackup, useRestoreBackup } from '../hooks/useMonitoring';
-import { ArrowLeft, Play, Square, RotateCw, Trash2, Download, Copy, RefreshCw, Key, Upload } from 'lucide-react';
+import { useRedisInsightStatus, useEnableRedisInsight, useDisableRedisInsight } from '../hooks/useRedisInsight';
+import { ArrowLeft, Play, Square, RotateCw, Trash2, Download, Copy, RefreshCw, Key, Upload, Eye, EyeOff, ExternalLink } from 'lucide-react';
 import { getStatusColor, formatUptime, formatBytes, formatMB } from '../utils/format';
 import { getApiClient } from '../api/client';
+
+// RedisInsight Section Component
+const RedisInsightSection: React.FC<{
+  tenantName: string;
+  onMessage: (msg: { type: 'success' | 'error'; text: string } | null) => void;
+}> = ({ tenantName, onMessage }) => {
+  const { data: insightStatus, isLoading: insightLoading, refetch: refetchInsight } = useRedisInsightStatus(tenantName);
+  const enableMutation = useEnableRedisInsight();
+  const disableMutation = useDisableRedisInsight();
+  const [showCredentials, setShowCredentials] = useState(false);
+
+  const handleEnable = async () => {
+    try {
+      await enableMutation.mutateAsync(tenantName);
+      onMessage({ type: 'success', text: 'RedisInsight enabled successfully' });
+      setTimeout(() => {
+        onMessage(null);
+        refetchInsight();
+      }, 3000);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to enable RedisInsight';
+      onMessage({ type: 'error', text: errorMessage });
+      setTimeout(() => onMessage(null), 8000);
+    }
+  };
+
+  const handleDisable = async () => {
+    if (!window.confirm('Are you sure you want to disable RedisInsight?')) {
+      return;
+    }
+    try {
+      await disableMutation.mutateAsync(tenantName);
+      onMessage({ type: 'success', text: 'RedisInsight disabled successfully' });
+      setTimeout(() => {
+        onMessage(null);
+        refetchInsight();
+      }, 3000);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to disable RedisInsight';
+      onMessage({ type: 'error', text: errorMessage });
+      setTimeout(() => onMessage(null), 8000);
+    }
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    onMessage({ type: 'success', text: `${label} copied to clipboard` });
+    setTimeout(() => onMessage(null), 3000);
+  };
+
+  const insight = insightStatus?.redisinsight;
+  const isEnabled = insight?.enabled || false;
+
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold flex items-center space-x-2">
+          <Eye className="w-5 h-5" />
+          <span>RedisInsight Web Interface</span>
+        </h2>
+        {isEnabled ? (
+          <button
+            onClick={handleDisable}
+            disabled={disableMutation.isPending}
+            className="btn-danger flex items-center space-x-2"
+          >
+            <EyeOff className="w-4 h-4" />
+            <span>{disableMutation.isPending ? 'Disabling...' : 'Disable'}</span>
+          </button>
+        ) : (
+          <button
+            onClick={handleEnable}
+            disabled={enableMutation.isPending}
+            className="btn-primary flex items-center space-x-2"
+          >
+            <Eye className="w-4 h-4" />
+            <span>{enableMutation.isPending ? 'Enabling...' : 'Enable RedisInsight'}</span>
+          </button>
+        )}
+      </div>
+
+      {insightLoading ? (
+        <div className="text-center py-8 text-gray-500">Loading RedisInsight status...</div>
+      ) : isEnabled && insight ? (
+        <div className="space-y-4">
+          {/* Status */}
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-600">Status:</span>
+            <span className={`status-badge ${insight.status === 'running' ? 'status-running' : 'status-stopped'}`}>
+              {insight.status || 'unknown'}
+            </span>
+          </div>
+
+          {/* Access URLs */}
+          {insight.public_url && (
+            <div className="border border-gray-200 p-4 rounded">
+              <h3 className="font-semibold text-sm mb-3">Access RedisInsight</h3>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs text-gray-600 mb-2">Public URL:</p>
+                  <div className="flex items-center space-x-2">
+                    <code className="bg-gray-100 px-3 py-2 text-xs flex-1 overflow-x-auto">{insight.public_url}</code>
+                    <button
+                      onClick={() => window.open(insight.public_url, '_blank')}
+                      className="btn flex items-center space-x-1"
+                      title="Open in new tab"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => copyToClipboard(insight.public_url || '', 'Public URL')}
+                      className="text-gray-600 hover:text-gray-900"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                {insight.internal_url && (
+                  <div>
+                    <p className="text-xs text-gray-600 mb-2">Internal URL:</p>
+                    <div className="flex items-center space-x-2">
+                      <code className="bg-gray-100 px-3 py-2 text-xs flex-1 overflow-x-auto">{insight.internal_url}</code>
+                      <button
+                        onClick={() => copyToClipboard(insight.internal_url || '', 'Internal URL')}
+                        className="text-gray-600 hover:text-gray-900"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Credentials */}
+          {insight.username && insight.password && (
+            <div className="border border-gray-200 p-4 rounded">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-sm">Login Credentials</h3>
+                <button
+                  onClick={() => setShowCredentials(!showCredentials)}
+                  className="text-sm text-blue-600 hover:text-blue-700 flex items-center space-x-1"
+                >
+                  {showCredentials ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  <span>{showCredentials ? 'Hide' : 'Show'}</span>
+                </button>
+              </div>
+              {showCredentials && (
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs text-gray-600 mb-1">Username:</p>
+                    <div className="flex items-center space-x-2">
+                      <code className="bg-gray-100 px-3 py-2 text-xs flex-1">{insight.username}</code>
+                      <button
+                        onClick={() => copyToClipboard(insight.username || '', 'Username')}
+                        className="text-gray-600 hover:text-gray-900"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 mb-1">Password:</p>
+                    <div className="flex items-center space-x-2">
+                      <code className="bg-gray-100 px-3 py-2 text-xs flex-1 font-mono">{insight.password}</code>
+                      <button
+                        onClick={() => copyToClipboard(insight.password || '', 'Password')}
+                        className="text-gray-600 hover:text-gray-900"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Important Note */}
+          <div className="bg-yellow-50 border border-yellow-200 p-3 rounded">
+            <p className="text-xs text-yellow-800">
+              <strong>Note:</strong> The HTTPS certificate is self-signed. Your browser will show a security warning. 
+              This is expected - you can safely accept it to proceed. The Redis connection itself is automatically 
+              configured and uses TLS encryption.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="text-center py-8">
+          <p className="text-gray-600 mb-2">RedisInsight is not enabled for this tenant</p>
+          <p className="text-sm text-gray-500">
+            Enable RedisInsight to access a web-based GUI for managing and monitoring your Redis instance
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const TenantDetail: React.FC = () => {
   const { name } = useParams<{ name: string }>();
@@ -453,6 +653,9 @@ const TenantDetail: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* RedisInsight Section */}
+      <RedisInsightSection tenantName={name || ''} onMessage={setActionMessage} />
 
       {/* Handover Section */}
       <div className="card">
