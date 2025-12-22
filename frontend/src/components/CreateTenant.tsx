@@ -15,7 +15,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useCreateTenant } from '../hooks/useTenants';
 import { ArrowLeft } from 'lucide-react';
-import type { SecurityMode } from '../api/types';
+import type { SecurityMode, PersistenceMode } from '../api/types';
 
 const CreateTenant: React.FC = () => {
   const navigate = useNavigate();
@@ -25,11 +25,13 @@ const CreateTenant: React.FC = () => {
     maxmemory_mb: number;
     docker_limit_mb: number;
     security_mode: SecurityMode;
+    persistence_mode: PersistenceMode;
   }>({
     tenant_name: '',
     maxmemory_mb: 256,
     docker_limit_mb: 512,
     security_mode: 'tls-only',
+    persistence_mode: 'memory-only',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -180,6 +182,29 @@ const CreateTenant: React.FC = () => {
               <strong>TLS Only:</strong> Requires CA certificate, encrypted connection (port 7300-7599)<br />
               <strong>Dual Mode:</strong> Both TLS and Plain-Text on separate ports<br />
               <strong>Plain-Text:</strong> Password-only, no certificate required (port 7600-7899, not encrypted)
+            </p>
+          </div>
+
+          {/* Persistence Mode */}
+          <div>
+            <label htmlFor="persistence_mode" className="block text-sm font-medium mb-2">
+              Persistence Mode *
+            </label>
+            <select
+              id="persistence_mode"
+              className="input"
+              value={formData.persistence_mode}
+              onChange={(e) => setFormData({ 
+                ...formData, 
+                persistence_mode: e.target.value as 'memory-only' | 'persistent' 
+              })}
+            >
+              <option value="memory-only">Memory-Only (Fastest - Recommended)</option>
+              <option value="persistent">Persistent (Data survives restarts)</option>
+            </select>
+            <p className="text-xs text-gray-600 mt-1">
+              <strong>Memory-Only:</strong> Pure in-memory, no disk writes, 1-5ms latency (data lost on restart)<br />
+              <strong>Persistent:</strong> Traditional RDB + AOF, data survives restarts, 100-200ms latency
             </p>
           </div>
 

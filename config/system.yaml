@@ -79,6 +79,13 @@ defaults:
   # Default security mode for new tenants
   # Options: tls-only (recommended), dual-mode, plain-only
   security_mode: tls-only
+  
+  # Persistence Mode (v2.2+)
+  # Default persistence mode for new tenants
+  # Options: memory-only (recommended, lowest latency), persistent (durability)
+  # memory-only: Pure in-memory, no disk writes, 1-5ms latency
+  # persistent: Traditional AOF + RDB, data survives restarts, 100-200ms latency
+  persistence_mode: memory-only
 
 # Organization information
 # Configure these values for handover packages and documentation

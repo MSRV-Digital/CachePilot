@@ -311,6 +311,17 @@ const TenantDetail: React.FC = () => {
                   </span>
                 </td>
               </tr>
+              <tr className="border-b border-gray-200">
+                <td className="py-2 text-gray-600">Persistence Mode</td>
+                <td className="py-2">
+                  <span className="font-semibold">
+                    {tenant.persistence_mode || 'persistent'}
+                  </span>
+                  {tenant.persistence_mode === 'memory-only' && (
+                    <span className="ml-2 text-xs text-green-600">⚡ High Performance</span>
+                  )}
+                </td>
+              </tr>
               {tenant.port_tls && (
                 <tr className="border-b border-gray-200">
                   <td className="py-2 text-gray-600">TLS Port</td>

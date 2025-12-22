@@ -21,12 +21,17 @@ class SecurityMode(str, Enum):
     DUAL_MODE = "dual-mode"
     PLAIN_ONLY = "plain-only"
 
+class PersistenceMode(str, Enum):
+    MEMORY_ONLY = "memory-only"
+    PERSISTENT = "persistent"
+
 class TenantCreateRequest(BaseModel):
     tenant_name: str = Field(pattern=r'^[a-z0-9][a-z0-9-]{0,62}$')
     maxmemory_mb: int = Field(default=256, ge=64, le=4096)
     docker_limit_mb: int = Field(default=512, ge=128, le=8192)
     password: Optional[str] = None
     security_mode: SecurityMode = Field(default=SecurityMode.TLS_ONLY)
+    persistence_mode: PersistenceMode = Field(default=PersistenceMode.MEMORY_ONLY)
     
     @field_validator('docker_limit_mb')
     @classmethod

@@ -1,4 +1,5 @@
 export type SecurityMode = 'tls-only' | 'dual-mode' | 'plain-only';
+export type PersistenceMode = 'memory-only' | 'persistent';
 
 export interface Tenant {
   tenant: string;
@@ -14,6 +15,7 @@ export interface Tenant {
   keys?: string;
   uptime_seconds?: number;
   security_mode?: SecurityMode;
+  persistence_mode?: PersistenceMode;
   port_tls?: number | string;
   port_plain?: number | string;
   total_commands?: string;
@@ -29,6 +31,7 @@ export interface TenantCreateRequest {
   docker_limit_mb: number;
   password?: string;
   security_mode?: SecurityMode;
+  persistence_mode?: PersistenceMode;
 }
 
 export interface TenantUpdateRequest {

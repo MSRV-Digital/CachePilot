@@ -24,6 +24,7 @@ create_tenant() {
     local docker_limit="${3:-}"
     local security_mode="${4:-tls-only}"
     local custom_password="${5:-}"
+    local persistence_mode="${6:-memory-only}"
     local user="${AUDIT_USER:-${USER:-system}}"
     
     # Handle docker_limit - calculate default or validate
@@ -31,6 +32,17 @@ create_tenant() {
         # Calculate default: maxmemory * 2
         docker_limit=$((maxmemory * 2))
         log "Docker limit not specified or invalid, using default: ${docker_limit}MB"
+    fi
+    
+    # Get default persistence_mode from system.yaml if not specified
+    if [[ "$persistence_mode" == "memory-only" ]] && [[ -f "$CONFIG_FILE" ]]; then
+        local yaml_persistence=$(grep "persistence_mode:" "$CONFIG_FILE" | head -1 | awk '{print $2}' || echo "memory-only")
+        persistence_mode="${yaml_persistence:-memory-only}"
+    fi
+    
+    # Validate persistence mode
+    if [[ ! "$persistence_mode" =~ ^(memory-only|persistent)$ ]]; then
+        error "Invalid persistence mode: $persistence_mode. Valid options: memory-only, persistent"
     fi
     
     validate_tenant_name "$tenant"
@@ -82,6 +94,7 @@ create_tenant() {
     cat > "${tenant_dir}/config.env" << EOF
 TENANT=${tenant}
 SECURITY_MODE=${security_mode}
+PERSISTENCE_MODE=${persistence_mode}
 PORT_TLS=${port_tls}
 PORT_PLAIN=${port_plain}
 PASSWORD=${password}
@@ -98,8 +111,8 @@ EOF
     generate_tenant_cert "$tenant"
     cp "${CA_DIR}/ca.crt" "${tenant_dir}/certs/"
     
-    log "Creating Redis configuration..."
-    create_redis_config "$tenant" "$password" "$maxmemory" "$security_mode"
+    log "Creating Redis configuration (${persistence_mode})..."
+    create_redis_config "$tenant" "$password" "$maxmemory" "$security_mode" "$persistence_mode"
     
     log "Creating Docker Compose configuration..."
     create_docker_compose "$tenant" "$port_tls" "$password" "$maxmemory" "$docker_limit" "$security_mode" "$port_plain"

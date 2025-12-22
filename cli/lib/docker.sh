@@ -99,6 +99,7 @@ create_redis_config() {
     local password="$2"
     local maxmemory="$3"
     local security_mode="${4:-tls-only}"
+    local persistence_mode="${5:-memory-only}"
     local tenant_dir="${TENANTS_DIR}/${tenant}"
     
     # Generate redis.conf based on security mode
@@ -177,8 +178,23 @@ EOF
 # Memory Management
 maxmemory ${maxmemory}mb
 maxmemory-policy allkeys-lru
+EOF
+    
+    # Add persistence configuration based on mode
+    if [[ "$persistence_mode" == "memory-only" ]]; then
+        cat >> "${tenant_dir}/redis.conf" << EOF
 
-# Persistence Configuration
+# Persistence Configuration: MEMORY-ONLY MODE
+# All disk writes disabled for maximum performance (1-5ms latency)
+# Data will be lost on restart - use on-demand backups if needed
+save ""
+appendonly no
+EOF
+    else
+        cat >> "${tenant_dir}/redis.conf" << EOF
+
+# Persistence Configuration: PERSISTENT MODE
+# Traditional RDB snapshots + AOF for data durability
 save 900 1
 save 300 10
 save 60 10000
@@ -190,6 +206,10 @@ rdbcompression yes
 appendonly yes
 appendfilename "appendonly.aof"
 appendfsync everysec
+EOF
+    fi
+    
+    cat >> "${tenant_dir}/redis.conf" << EOF
 
 # Security: Disable dangerous commands
 rename-command KEYS ""

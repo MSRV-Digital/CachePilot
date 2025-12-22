@@ -119,13 +119,21 @@ echo -e "${BLUE}[4/11]${NC} Checking configuration..."
 [ ! -d "/etc/cachepilot" ] && echo "Will create /etc/cachepilot during update"
 echo ""
 
-echo -e "${BLUE}[4.5/11]${NC} Migrating port configuration..."
+echo -e "${BLUE}[4.5/11]${NC} Migrating configuration..."
 
 # Check if new port range fields exist in system.yaml
 NEEDS_PORT_MIGRATION=false
 if [ -f "/etc/cachepilot/system.yaml" ]; then
     if ! grep -q "redis_tls_port_end:" /etc/cachepilot/system.yaml 2>/dev/null; then
         NEEDS_PORT_MIGRATION=true
+    fi
+fi
+
+# Check if persistence_mode exists in system.yaml
+NEEDS_PERSISTENCE_CONFIG=false
+if [ -f "/etc/cachepilot/system.yaml" ]; then
+    if ! grep -q "persistence_mode:" /etc/cachepilot/system.yaml 2>/dev/null; then
+        NEEDS_PERSISTENCE_CONFIG=true
     fi
 fi
 
@@ -387,10 +395,39 @@ echo ""
 
 echo -e "${BLUE}[11.5/11]${NC} Migrating tenants to new config format..."
 
+# Migrate tenant config.env files to add PERSISTENCE_MODE
+TENANTS_DIR="/var/cachepilot/tenants"
+if [ ! -d "$TENANTS_DIR" ] && [ -d "$INSTALL_DIR/data/tenants" ]; then
+    TENANTS_DIR="$INSTALL_DIR/data/tenants"
+fi
+
+if [ -d "$TENANTS_DIR" ]; then
+    MIGRATED_COUNT=0
+    for tenant_dir in "$TENANTS_DIR"/*; do
+        if [ -d "$tenant_dir" ] && [ -f "$tenant_dir/config.env" ]; then
+            tenant=$(basename "$tenant_dir")
+            
+            # Check if PERSISTENCE_MODE already exists
+            if ! grep -q "^PERSISTENCE_MODE=" "$tenant_dir/config.env" 2>/dev/null; then
+                # Add PERSISTENCE_MODE=persistent to maintain current behavior
+                sed -i '/^SECURITY_MODE=/a PERSISTENCE_MODE=persistent' "$tenant_dir/config.env"
+                ((MIGRATED_COUNT++))
+            fi
+        fi
+    done
+    
+    if [ $MIGRATED_COUNT -gt 0 ]; then
+        echo -e "${GREEN}✓${NC} Migrated $MIGRATED_COUNT tenant(s) to include PERSISTENCE_MODE"
+        echo "    (All existing tenants set to 'persistent' to maintain current behavior)"
+    else
+        echo "All tenants already have PERSISTENCE_MODE configured"
+    fi
+fi
+
 if [ -x "$INSTALL_DIR/install/scripts/migrate-tenants-dual-mode.sh" ]; then
     bash "$INSTALL_DIR/install/scripts/migrate-tenants-dual-mode.sh"
 else
-    echo "Migration script not found, skipping"
+    echo "Dual-mode migration script not found, skipping"
 fi
 echo ""
 

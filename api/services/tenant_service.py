@@ -56,6 +56,11 @@ class TenantService:
         
         if request.password:
             args.append(request.password)
+        else:
+            args.append("")  # Empty password means auto-generate
+        
+        # Add persistence_mode as 6th parameter
+        args.append(request.persistence_mode.value)
         
         success, stdout, stderr = executor.execute_with_timeout("new", 120, *args)
         
@@ -159,6 +164,7 @@ class TenantService:
             uptime_seconds = 0
         
         security_mode = config.get('SECURITY_MODE', 'tls-only')
+        persistence_mode = config.get('PERSISTENCE_MODE', 'persistent')
         port_tls = config.get('PORT_TLS', config.get('PORT', ''))
         port_plain = config.get('PORT_PLAIN', '')
         
@@ -166,6 +172,7 @@ class TenantService:
             "tenant": name,
             "port": port_tls or port_plain,
             "security_mode": security_mode,
+            "persistence_mode": persistence_mode,
             "port_tls": port_tls,
             "port_plain": port_plain,
             "status": status,
