@@ -1,34 +1,26 @@
-/**
- * CachePilot - API Type Definitions
- * 
- * TypeScript interfaces for API requests, responses, and data models.
- * 
- * @author Patrick Schlesinger <cachepilot@msrv-digital.de>
- * @company MSRV Digital
- * @version 2.1.0-beta
- * @license MIT
- * 
- * Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
- */
+export type SecurityMode = 'tls-only' | 'dual-mode' | 'plain-only';
 
-export interface ApiResponse<T> {
-  success: boolean;
-  message: string;
-  data?: T;
-  error?: string | null;
-}
-
-// Tenant types
 export interface Tenant {
   tenant: string;
-  port: string;
-  status: 'running' | 'stopped';
+  port: number | string;
+  status: string;
+  created?: string;
   memory_used?: string;
+  memory_peak?: string;
+  memory_limit?: number;
+  maxmemory?: number;
+  docker_limit?: number;
   clients?: string;
   keys?: string;
   uptime_seconds?: number;
-  maxmemory?: number;
-  docker_limit?: number;
+  security_mode?: SecurityMode;
+  port_tls?: number | string;
+  port_plain?: number | string;
+  total_commands?: string;
+  keyspace_hits?: string;
+  keyspace_misses?: string;
+  hit_rate?: string;
+  evicted_keys?: string;
 }
 
 export interface TenantCreateRequest {
@@ -36,54 +28,68 @@ export interface TenantCreateRequest {
   maxmemory_mb: number;
   docker_limit_mb: number;
   password?: string;
+  security_mode?: SecurityMode;
 }
 
 export interface TenantUpdateRequest {
   maxmemory_mb?: number;
   docker_limit_mb?: number;
+  password?: string;
 }
 
-// Monitoring types
+export interface BackupRequest {
+  tenant_name?: string;
+  tenant?: string;
+}
+
+export interface ApiResponse<T = any> {
+  success: boolean;
+  message: string;
+  data?: T;
+  error?: string;
+}
+
+export interface Stats {
+  total_tenants: number;
+  running_tenants: number;
+  running?: number;
+  stopped_tenants: number;
+  stopped?: number;
+  total_memory_used: number;
+  total_memory_limit: number;
+  total_connections: number;
+  total_clients?: number;
+  total_keys: number;
+}
+
+export interface Alert {
+  id: string;
+  tenant?: string;
+  severity: 'info' | 'warning' | 'critical';
+  message: string;
+  timestamp: string;
+  resolved: boolean;
+}
+
 export interface HealthStatus {
-  status: 'healthy' | 'degraded' | 'unhealthy';
+  status: string;
+  timestamp: string;
   services: {
-    docker: string;
-    disk_space: string;
-    certificates: string;
+    [key: string]: string;
   };
   total_tenants: number;
   running_tenants: number;
   issues: string[];
 }
 
-export interface Stats {
-  total_tenants: string;
-  running: string;
-  stopped: string;
-  total_memory_used: string;
-  total_clients: string;
-  total_keys: string;
-}
-
-export interface Alert {
-  id: string;
-  severity: 'info' | 'warning' | 'critical';
-  message: string;
+export interface MonitoringData {
   timestamp: string;
-  tenant?: string;
-}
-
-// Backup types
-export interface BackupRequest {
-  tenant: string;
-}
-
-export interface BackupInfo {
-  file: string;
-  size: string;
-}
-
-export interface RestoreBackupRequest {
-  tenant: string;
-  backup_file: string;
+  tenants: {
+    name: string;
+    memory_used: number;
+    memory_limit: number;
+    connected_clients: number;
+    total_keys: number;
+    uptime_seconds: number;
+  }[];
 }

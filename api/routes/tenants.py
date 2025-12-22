@@ -6,7 +6,7 @@ operations, and credential rotation.
 
 Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
 Company: MSRV Digital
-Version: 2.1.0-beta
+Version: 2.1.2-Beta
 License: MIT
 
 Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
@@ -92,6 +92,13 @@ async def get_handover_info(tenant_name: str, api_key: dict = Depends(get_api_ke
 @router.post("/{tenant_name}/handover/regenerate", response_model=ApiResponse)
 async def regenerate_handover(tenant_name: str, api_key: dict = Depends(get_api_key)):
     result = tenant_service.regenerate_handover(tenant_name)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+@router.post("/{tenant_name}/security-mode", response_model=ApiResponse)
+async def change_security_mode(tenant_name: str, security_mode: str, api_key: dict = Depends(get_api_key)):
+    result = tenant_service.change_security_mode(tenant_name, security_mode)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["error"])
     return result

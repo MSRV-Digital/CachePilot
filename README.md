@@ -9,7 +9,7 @@ This project is designed for hosting providers, agencies, and developers who nee
 ---
 
 **Author:** Patrick Schlesinger, MSRV Digital  
-**Version:** 2.1.0-beta  
+**Version:** 2.1.2-Beta  
 **Status:** Beta - Active Development  
 **Redis Version:** 7 (stable)  
 **License:** MIT  
@@ -19,7 +19,7 @@ This project is designed for hosting providers, agencies, and developers who nee
 
 **BETA SOFTWARE NOTICE**
 
-CachePilot is currently in BETA (v2.1.0-beta) and under active development.
+CachePilot is currently in BETA (v2.1.2-Beta) and under active development.
 
 - Core functionality is stable and tested
 - Some features may have bugs or limitations
@@ -150,7 +150,7 @@ The installation script will check for and install missing dependencies, but you
 
 ### Installation
 
-CachePilot v2.1.0+ uses **Git-based deployment** for easier updates and version management.
+CachePilot v2.1.2+ uses **Git-based deployment** for easier updates and version management.
 
 1. **Download installation files:**
    ```bash
@@ -189,7 +189,7 @@ CachePilot v2.1.0+ uses **Git-based deployment** for easier updates and version 
    rm -rf /tmp/cachepilot-install
    ```
 
-**New in v2.1.0:** Git-based installation enables:
+**New in v2.1.2:** Git-based installation enables:
 - One-command updates: `sudo cachepilot system update`
 - Easy rollback: `sudo cachepilot system rollback`
 - Branch switching: stable ↔ beta
@@ -239,7 +239,7 @@ The `cachepilot` command provides system management. It is symlinked to `/usr/lo
 Usage: cachepilot <command> [arguments]
 
 Tenant Management:
-  new <tenant>                    Create new Redis instance
+  new <tenant> [mem] [docker] [mode]  Create new Redis instance
   rm <tenant>                     Remove instance and all data
   start <tenant>                  Start instance
   stop <tenant>                   Stop instance
@@ -255,6 +255,7 @@ Monitoring & Statistics:
 
 Configuration:
   set-mem <tenant> <max> <hard>   Set memory limits (MB)
+  set-access <tenant> <mode>      Change security mode (tls-only, dual-mode, plain-only)
   rotate <tenant>                 Rotate password and regenerate handover
 
 Maintenance:
@@ -542,11 +543,11 @@ Found a bug or issue? Please help us improve CachePilot:
 
 ## Roadmap to Stable Release
 
-Our path from BETA (v2.1.0-beta) to v2 stable release (December 2025 - December 2026):
+Our path from BETA (v2.1.2-Beta) to v2 stable release (December 2025 - December 2026):
 
 ### Phase 1: Beta Refinement & Testing (December 2025 - Q1 2026)
 **Focus: Stability & Production Readiness**
-- Comprehensive testing of all v2.1.0-beta features
+- Comprehensive testing of all v2.1.2-Beta features
 - Critical bug fixes and stability improvements
 - Security audit and penetration testing
 - Performance optimization for large-scale deployments (100+ tenants)

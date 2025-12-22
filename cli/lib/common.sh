@@ -7,7 +7,7 @@
 #
 # Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
 # Company: MSRV Digital
-# Version: 2.1.0-beta
+# Version: 2.1.2-Beta
 # License: MIT
 # Repository: https://github.com/MSRV-Digital/CachePilot
 #
@@ -91,6 +91,8 @@ load_system_config() {
     CONFIG_NETWORK[public_ip]="${CONFIG_network_public_ip}"
     CONFIG_NETWORK[redis_port_start]="${CONFIG_network_redis_port_start}"
     CONFIG_NETWORK[redis_port_end]="${CONFIG_network_redis_port_end}"
+    CONFIG_NETWORK[redis_tls_port_end]="${CONFIG_network_redis_tls_port_end}"
+    CONFIG_NETWORK[redis_plain_port_start]="${CONFIG_network_redis_plain_port_start}"
     CONFIG_NETWORK[insight_port_start]="${CONFIG_network_insight_port_start}"
     CONFIG_NETWORK[insight_port_end]="${CONFIG_network_insight_port_end}"
     
@@ -302,11 +304,44 @@ require_tenant() {
     fi
 }
 
+# Legacy function: Returns next available port in TLS range
+# Kept for backward compatibility with existing code
 get_next_port() {
+    get_next_tls_port
+}
+
+# Get next available TLS port from the TLS range (7300-7599 by default)
+# This is the primary port for TLS-encrypted connections
+get_next_tls_port() {
     local start_port="${REDIS_PORT_START:-7300}"
-    local end_port="${REDIS_PORT_END:-7399}"
-    local used_ports=$(find "${TENANTS_DIR}" -name "config.env" -exec grep -h "^PORT=" {} \; 2>/dev/null | cut -d= -f2 | sort -n)
+    local end_port="${CONFIG_NETWORK[redis_tls_port_end]:-7599}"
+
+    # Find all used TLS ports from existing tenants (using -exec to avoid subprocess blocking)
+    local used_ports=$(find "${TENANTS_DIR}" -name "config.env" -exec grep -h "^PORT_TLS=" {} \; 2>/dev/null | cut -d= -f2
+                       find "${TENANTS_DIR}" -name "config.env" -exec grep -h "^PORT=" {} \; 2>/dev/null | cut -d= -f2)
+    used_ports=$(echo "$used_ports" | sort -n | uniq)
+
+    # Find first available port in TLS range
+    for port in $(seq $start_port $end_port); do
+        if ! echo "$used_ports" | grep -q "^${port}$"; then
+            echo "$port"
+            return 0
+        fi
+    done
+
+    error "No available TLS ports in range ${start_port}-${end_port}"
+}
+
+# Get next available Plain-Text port from the Plain-Text range (7600-7899 by default)
+# This is used for plain-text connections when dual-mode or plain-only is enabled
+get_next_plain_port() {
+    local start_port="${CONFIG_NETWORK[redis_plain_port_start]:-7600}"
+    local end_port="${CONFIG_NETWORK[redis_port_end]:-7899}"
     
+    # Find all used Plain-Text ports from existing tenants (using -exec to avoid subprocess blocking)
+    local used_ports=$(find "${TENANTS_DIR}" -name "config.env" -exec grep -h "^PORT_PLAIN=" {} \; 2>/dev/null | cut -d= -f2 | grep -v '^$' | sort -n | uniq)
+    
+    # Find first available port in Plain-Text range
     for port in $(seq $start_port $end_port); do
         if ! echo "$used_ports" | grep -q "^${port}$"; then
             echo "$port"
@@ -314,7 +349,28 @@ get_next_port() {
         fi
     done
     
-    error "No available ports in range ${start_port}-${end_port}"
+    error "No available Plain-Text ports in range ${start_port}-${end_port}"
+}
+
+# Calculate paired Plain-Text port for a given TLS port
+# Uses +300 offset for predictable port pairing
+# Example: TLS port 7300 -> Plain-Text port 7600
+calculate_plain_port_from_tls() {
+    local tls_port="$1"
+    local offset=300
+    echo $((tls_port + offset))
+}
+
+# Check if a port is already in use by any tenant
+port_is_in_use() {
+    local port="$1"
+    # Find all used ports from existing tenants (using -exec to avoid subprocess blocking)
+    local used_ports=$(find "${TENANTS_DIR}" -name "config.env" -exec grep -h "^PORT_TLS=" {} \; 2>/dev/null | cut -d= -f2
+                       find "${TENANTS_DIR}" -name "config.env" -exec grep -h "^PORT_PLAIN=" {} \; 2>/dev/null | cut -d= -f2
+                       find "${TENANTS_DIR}" -name "config.env" -exec grep -h "^PORT=" {} \; 2>/dev/null | cut -d= -f2)
+    used_ports=$(echo "$used_ports" | grep -v '^$' | sort -n | uniq)
+    
+    echo "$used_ports" | grep -q "^${port}$"
 }
 
 generate_password() {

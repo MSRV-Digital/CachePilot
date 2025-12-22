@@ -32,7 +32,7 @@ body:
     attributes:
       label: CachePilot Version
       description: Run `cachepilot --version`
-      placeholder: "2.1.0-beta"
+      placeholder: "2.1.2-Beta"
     validations:
       required: true
 

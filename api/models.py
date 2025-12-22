@@ -5,7 +5,7 @@ Pydantic models for request/response validation, type safety, and API documentat
 
 Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
 Company: MSRV Digital
-Version: 2.1.0-beta
+Version: 2.1.2-Beta
 License: MIT
 
 Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
@@ -14,12 +14,19 @@ Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Dict, Any, List
 from datetime import datetime
+from enum import Enum
+
+class SecurityMode(str, Enum):
+    TLS_ONLY = "tls-only"
+    DUAL_MODE = "dual-mode"
+    PLAIN_ONLY = "plain-only"
 
 class TenantCreateRequest(BaseModel):
     tenant_name: str = Field(pattern=r'^[a-z0-9][a-z0-9-]{0,62}$')
     maxmemory_mb: int = Field(default=256, ge=64, le=4096)
     docker_limit_mb: int = Field(default=512, ge=128, le=8192)
     password: Optional[str] = None
+    security_mode: SecurityMode = Field(default=SecurityMode.TLS_ONLY)
     
     @field_validator('docker_limit_mb')
     @classmethod

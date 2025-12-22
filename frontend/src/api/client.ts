@@ -5,7 +5,7 @@
  * 
  * @author Patrick Schlesinger <cachepilot@msrv-digital.de>
  * @company MSRV Digital
- * @version 2.1.0-beta
+ * @version 2.1.2-Beta
  * @license MIT
  * 
  * Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
@@ -139,6 +139,12 @@ export class ApiClient {
 
   async regenerateHandover(name: string): Promise<void> {
     await this.client.post<ApiResponse<void>>(`/tenants/${name}/handover/regenerate`);
+  }
+
+  async changeSecurityMode(name: string, securityMode: string): Promise<void> {
+    await this.client.post<ApiResponse<void>>(`/tenants/${name}/security-mode`, null, {
+      params: { security_mode: securityMode }
+    });
   }
 
   // Monitoring operations

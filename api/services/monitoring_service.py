@@ -5,7 +5,7 @@ Business logic for health checks, metrics collection, alerts, and statistics.
 
 Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
 Company: MSRV Digital
-Version: 2.1.0-beta
+Version: 2.1.2-Beta
 License: MIT
 
 Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
@@ -48,53 +48,67 @@ class MonitoringService:
             }
     
     def get_global_stats(self) -> Dict[str, Any]:
-        # Call the bash function directly to avoid subprocess issues
+        # Direct Python implementation - much faster than bash subprocess
         import subprocess
-        
-        bash_cmd = '''
-        source /opt/cachepilot/cli/lib/common.sh 2>/dev/null
-        source /opt/cachepilot/cli/lib/docker.sh 2>/dev/null  
-        source /opt/cachepilot/cli/lib/monitoring.sh 2>/dev/null
-        show_global_stats_json
-        '''
+        import re
         
         try:
+            # Count tenants from directory
+            tenants_dir = Path(self.settings.tenants_dir)
+            total_tenants = len([d for d in tenants_dir.iterdir() if d.is_dir()])
+            
+            # Get running containers (FAST)
             result = subprocess.run(
-                ['bash', '-c', bash_cmd],
+                ["docker", "ps", "--filter", "name=redis-", "--format", "{{.Names}}"],
                 capture_output=True,
                 text=True,
-                timeout=30,
+                timeout=5,
                 check=False
             )
+            running_containers = [line for line in result.stdout.strip().split('\n') if line.startswith('redis-')]
+            running_tenants = len(running_containers)
             
-            if result.returncode == 0 and result.stdout:
-                stats_data = json.loads(result.stdout)
-                # Transform the data to match frontend expectations (all values as strings)
-                formatted_stats = {
-                    "total_tenants": str(stats_data.get("total_tenants", 0)),
-                    "running": str(stats_data.get("running_tenants", 0)),
-                    "stopped": str(stats_data.get("stopped_tenants", 0)),
-                    "total_memory_used": str(stats_data.get("total_memory_used", 0)),
-                    "total_clients": str(stats_data.get("total_clients", 0)),
-                    "total_keys": str(stats_data.get("total_keys", 0))
-                }
-                return {
-                    "success": True,
-                    "message": "Statistics retrieved",
-                    "data": formatted_stats
-                }
-            else:
-                return {
-                    "success": False,
-                    "message": "Failed to retrieve statistics",
-                    "error": result.stderr or "Command execution failed"
-                }
-        except json.JSONDecodeError as e:
-            return {
-                "success": False,
-                "message": "Failed to parse statistics data",
-                "error": f"JSON decode error: {str(e)}"
+            # Get memory stats from docker stats (single fast call)
+            total_memory = 0
+            if running_tenants > 0:
+                result = subprocess.run(
+                    ["docker", "stats", "--no-stream", "--format", "{{.Name}}\t{{.MemUsage}}"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    check=False
+                )
+                
+                for line in result.stdout.strip().split('\n'):
+                    if line.startswith('redis-'):
+                        parts = line.split('\t')
+                        if len(parts) >= 2:
+                            mem_str = parts[1].split('/')[0].strip()
+                            # Parse memory (e.g., "123.4MiB" or "1.2GiB")
+                            if match := re.match(r'([0-9.]+)(MiB|GiB)', mem_str):
+                                value, unit = match.groups()
+                                mem_bytes = float(value) * (1024 * 1024 if unit == 'MiB' else 1024 * 1024 * 1024)
+                                total_memory += int(mem_bytes)
+            
+            formatted_stats = {
+                "total_tenants": total_tenants,
+                "running_tenants": running_tenants,
+                "running": running_tenants,
+                "stopped_tenants": total_tenants - running_tenants,
+                "stopped": total_tenants - running_tenants,
+                "total_memory_used": total_memory,
+                "total_memory_limit": 0,
+                "total_connections": 0,
+                "total_clients": 0,
+                "total_keys": 0
             }
+            
+            return {
+                "success": True,
+                "message": "Statistics retrieved",
+                "data": formatted_stats
+            }
+            
         except Exception as e:
             return {
                 "success": False,

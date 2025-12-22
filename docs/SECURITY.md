@@ -2,7 +2,7 @@
 
 Author: Patrick Schlesinger <cachepilot@msrv-digital.de>  
 Company: MSRV Digital  
-Version: 2.1.0-beta  
+Version: 2.1.2-Beta  
 License: MIT
 
 Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
@@ -252,4 +252,4 @@ For detailed deployment guidance, see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ---
 
-Last Updated: 2025-11-04 | Version: 2.1.0-beta
+Last Updated: 2025-11-04 | Version: 2.1.2-Beta

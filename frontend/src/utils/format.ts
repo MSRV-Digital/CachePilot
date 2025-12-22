@@ -5,7 +5,7 @@
  * 
  * @author Patrick Schlesinger <cachepilot@msrv-digital.de>
  * @company MSRV Digital
- * @version 2.1.0-beta
+ * @version 2.1.2-Beta
  * @license MIT
  * 
  * Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
@@ -88,6 +88,19 @@ export const getStatusBg = (status: string): string => {
     default:
       return 'bg-gray-300';
   }
+};
+
+// Format MB values for display
+export const formatMB = (mb: number | string): string => {
+  if (!mb || mb === 0) return '0 MB';
+  
+  const mbValue = typeof mb === 'string' ? parseFloat(mb) : mb;
+  
+  if (mbValue >= 1024) {
+    return `${(mbValue / 1024).toFixed(2)} GB`;
+  }
+  
+  return `${mbValue} MB`;
 };
 
 // Parse memory string to bytes

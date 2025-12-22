@@ -1,6 +1,6 @@
 {
   "name": "cachepilot-frontend",
-  "version": "2.0.0",
+  "version": "2.1.2-Beta",
   "private": true,
   "type": "module",
   "scripts": {

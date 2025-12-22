@@ -6,7 +6,7 @@ overrides and FHS-compliant path defaults.
 
 Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
 Company: MSRV Digital
-Version: 2.1.0-beta
+Version: 2.1.2-Beta
 License: MIT
 
 Copyright (c) 2025 Patrick Schlesinger, MSRV Digital

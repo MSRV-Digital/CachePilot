@@ -7,7 +7,7 @@
 #
 # Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
 # Company: MSRV Digital
-# Version: 2.1.0-beta
+# Version: 2.1.2-Beta
 # License: MIT
 # Repository: https://github.com/MSRV-Digital/CachePilot
 #

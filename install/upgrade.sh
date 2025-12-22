@@ -5,7 +5,7 @@
 # Upgrades CachePilot to a new version while preserving data
 #
 # Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
-# Version: 2.1.0-beta
+# Version: 2.1.2-Beta
 # License: MIT
 #
 
@@ -18,7 +18,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 echo "========================================"
-echo "CachePilot v2.1.0-beta Upgrade"
+echo "CachePilot v2.1.2-Beta Upgrade"
 echo "========================================"
 echo ""
 
@@ -117,6 +117,67 @@ echo ""
 
 echo -e "${BLUE}[4/11]${NC} Checking configuration..."
 [ ! -d "/etc/cachepilot" ] && echo "Will create /etc/cachepilot during update"
+echo ""
+
+echo -e "${BLUE}[4.5/11]${NC} Migrating port configuration..."
+
+# Check if new port range fields exist in system.yaml
+NEEDS_PORT_MIGRATION=false
+if [ -f "/etc/cachepilot/system.yaml" ]; then
+    if ! grep -q "redis_tls_port_end:" /etc/cachepilot/system.yaml 2>/dev/null; then
+        NEEDS_PORT_MIGRATION=true
+    fi
+fi
+
+if [ "$NEEDS_PORT_MIGRATION" = true ]; then
+    echo "Updating port range configuration for dual-mode support..."
+    
+    # Get current values
+    CURRENT_START=$(grep "redis_port_start:" /etc/cachepilot/system.yaml | awk '{print $2}' || echo "7300")
+    CURRENT_END=$(grep "redis_port_end:" /etc/cachepilot/system.yaml | awk '{print $2}' || echo "7399")
+    
+    # Calculate new ranges for 300 dual-mode tenants
+    NEW_END=7899  # Expanded from 7399
+    TLS_END=7599  # Split point
+    PLAIN_START=7600  # Start of Plain-Text range
+    
+    echo "Current range: $CURRENT_START-$CURRENT_END"
+    echo "New range:     $CURRENT_START-$NEW_END"
+    
+    # Update existing redis_port_end field
+    sed -i "s/redis_port_end: .*/redis_port_end: $NEW_END/" /etc/cachepilot/system.yaml
+    
+    # Add new fields if they don't exist
+    if ! grep -q "redis_tls_port_end:" /etc/cachepilot/system.yaml 2>/dev/null; then
+        # Add after redis_port_end line
+        sed -i "/redis_port_end:/a\  redis_tls_port_end: $TLS_END" /etc/cachepilot/system.yaml
+    fi
+    
+    if ! grep -q "redis_plain_port_start:" /etc/cachepilot/system.yaml 2>/dev/null; then
+        # Add after redis_tls_port_end line
+        sed -i "/redis_tls_port_end:/a\  redis_plain_port_start: $PLAIN_START" /etc/cachepilot/system.yaml
+    fi
+    
+    # Add default security_mode if not present
+    if ! grep -q "security_mode:" /etc/cachepilot/system.yaml 2>/dev/null; then
+        sed -i "/defaults:/a\  \n  # Security Mode (v2.2+)\n  # Default security mode for new tenants\n  # Options: tls-only (recommended), dual-mode, plain-only\n  security_mode: tls-only" /etc/cachepilot/system.yaml
+    fi
+    
+    echo -e "${GREEN}✓${NC} Port ranges migrated:"
+    echo "    TLS Range:        $CURRENT_START-$TLS_END (300 ports)"
+    echo "    Plain-Text Range: $PLAIN_START-$NEW_END (300 ports)"
+    echo "    Total capacity:   300 dual-mode tenants"
+    
+    echo ""
+    echo -e "${YELLOW}⚠️  WICHTIG:${NC} Port-Range wurde erweitert ($CURRENT_START-$NEW_END)"
+    echo "Falls Firewall aktiv, Regeln prüfen:"
+    echo "  sudo ufw allow $CURRENT_START:$NEW_END/tcp"
+    echo "  # oder für specific network:"
+    echo "  sudo iptables -A INPUT -p tcp --dport $CURRENT_START:$NEW_END -s <trusted-network> -j ACCEPT"
+    echo ""
+else
+    echo "Port configuration already up-to-date"
+fi
 echo ""
 
 echo -e "${BLUE}[5/11]${NC} Updating files..."
@@ -321,6 +382,15 @@ elif [ -d "$INSTALL_DIR/data/tenants" ]; then
     fi
 else
     echo "No tenant directory found, skipping"
+fi
+echo ""
+
+echo -e "${BLUE}[11.5/11]${NC} Migrating tenants to new config format..."
+
+if [ -x "$INSTALL_DIR/install/scripts/migrate-tenants-dual-mode.sh" ]; then
+    bash "$INSTALL_DIR/install/scripts/migrate-tenants-dual-mode.sh"
+else
+    echo "Migration script not found, skipping"
 fi
 echo ""
 

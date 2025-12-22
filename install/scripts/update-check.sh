@@ -5,7 +5,7 @@
 # Checks for available updates from Git repository
 #
 # Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
-# Version: 2.1.0-beta
+# Version: 2.1.2-Beta
 # License: MIT
 #
 

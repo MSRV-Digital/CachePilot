@@ -5,7 +5,7 @@
  * 
  * @author Patrick Schlesinger <cachepilot@msrv-digital.de>
  * @company MSRV Digital
- * @version 2.1.0-beta
+ * @version 2.1.2-Beta
  * @license MIT
  * 
  * Copyright (c) 2025 Patrick Schlesinger, MSRV Digital

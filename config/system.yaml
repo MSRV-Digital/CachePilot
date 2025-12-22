@@ -6,7 +6,7 @@
 #
 # Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
 # Company: MSRV Digital
-# Version: 2.1.0-beta
+# Version: 2.2.0-beta
 # License: MIT
 #
 # Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
@@ -38,18 +38,47 @@ paths:
 
 # Network configuration
 # IMPORTANT: Configure these values for your deployment
+#
+# Port Range Strategy (v2.2+):
+# CachePilot supports dual-mode operation (TLS + Plain-Text) for up to 300 tenants.
+# The port ranges are split to ensure consistent port pairing and avoid collisions:
+#
+#   TLS Ports:        7300-7599 (300 ports)
+#   Plain-Text Ports: 7600-7899 (300 ports)
+#   Total Capacity:   300 dual-mode tenants OR 600 single-mode tenants
+#
+# Port Pairing Pattern:
+#   Tenant with TLS port 7300 → Plain-Text port 7600 (+300 offset)
+#   Tenant with TLS port 7301 → Plain-Text port 7601 (+300 offset)
+#   This makes troubleshooting and port management predictable.
+#
+# Security Modes (per tenant):
+#   - tls-only:    Default, most secure (requires CA certificate)
+#   - dual-mode:   Both TLS and Plain-Text active (flexibility)
+#   - plain-only:  Plain-Text with password only (simpler, less secure)
 network:
-  internal_ip: localhost       # Internal server IP address
-  public_ip: localhost         # Public-facing IP address or domain
-  redis_port_start: 7300
-  redis_port_end: 7399
+  internal_ip: 10.0.0.27       # Internal server IP address
+  public_ip: 159.69.9.24       # Public-facing IP address or domain
+  
+  # Redis Port Ranges (v2.2+: Expanded for 300 dual-mode tenants)
+  redis_port_start: 7300              # Start of TLS port range
+  redis_port_end: 7899                # End of entire port range (TLS + Plain-Text)
+  redis_tls_port_end: 7599            # End of TLS range / Split point
+  redis_plain_port_start: 7600        # Start of Plain-Text range
+  
+  # RedisInsight Port Range (expanded for 300 tenants)
   insight_port_start: 8300
-  insight_port_end: 8399
+  insight_port_end: 8599
 
 # Default resource limits
 defaults:
   redis_memory_mb: 256
   docker_memory_mb: 512
+  
+  # Security Mode (v2.2+)
+  # Default security mode for new tenants
+  # Options: tls-only (recommended), dual-mode, plain-only
+  security_mode: tls-only
 
 # Organization information
 # Configure these values for handover packages and documentation

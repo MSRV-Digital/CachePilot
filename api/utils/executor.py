@@ -6,7 +6,7 @@ validation, sanitization, and comprehensive logging.
 
 Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
 Company: MSRV Digital
-Version: 2.1.0-beta
+Version: 2.1.2-Beta
 License: MIT
 
 Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
@@ -31,7 +31,7 @@ class CommandExecutor:
         "monitoring", "metrics",
         "config", "get", "set",
         "redis", "cli", "info", "restart", "start", "stop",
-        "new", "rm", "set-memory", "rotate", "handover"
+        "new", "rm", "set-memory", "rotate", "handover", "set-access"
     }
     
     def __init__(self, cli_path: str = None):

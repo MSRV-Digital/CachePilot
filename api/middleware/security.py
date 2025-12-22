@@ -6,7 +6,7 @@ and content security policies.
 
 Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
 Company: MSRV Digital
-Version: 2.1.0-beta
+Version: 2.1.2-Beta
 License: MIT
 
 Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
@@ -28,10 +28,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         
         response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"  # Changed from DENY to allow same origin
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        response.headers["Content-Security-Policy"] = "default-src 'self'"
+        # Removed restrictive CSP - it was blocking frontend functionality
+        # response.headers["Content-Security-Policy"] = "default-src 'self'"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
         
@@ -207,14 +208,19 @@ class ContentSecurityMiddleware(BaseHTTPMiddleware):
         content_type = request.headers.get("content-type", "")
         
         if request.method in ["POST", "PUT", "PATCH"]:
-            if "application/json" not in content_type and content_type:
-                return JSONResponse(
-                    status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-                    content={
-                        "detail": "Content-Type must be application/json",
-                        "error": "unsupported_media_type"
-                    }
-                )
+            # Allow empty body with query params (e.g., security-mode change)
+            # Only enforce Content-Type if there's actual content
+            if content_type and "application/json" not in content_type:
+                # Check if body is not empty
+                body = await request.body()
+                if body:  # Only reject if there's actual content with wrong type
+                    return JSONResponse(
+                        status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                        content={
+                            "detail": "Content-Type must be application/json",
+                            "error": "unsupported_media_type"
+                        }
+                    )
         
         response = await call_next(request)
         return response

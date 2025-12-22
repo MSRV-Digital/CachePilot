@@ -2,7 +2,7 @@
 
 Author: Patrick Schlesinger <cachepilot@msrv-digital.de>  
 Company: MSRV Digital  
-Version: 2.1.0-beta  
+Version: 2.1.2-Beta  
 License: MIT
 
 Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
@@ -11,7 +11,7 @@ Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
 
 **BETA SOFTWARE NOTICE**
 
-The CachePilot frontend is part of v2.1.0-beta and is under active development. All core features are functional and tested. UI/UX improvements and additional dashboard features are ongoing. Test thoroughly before production deployment.
+The CachePilot frontend is part of v2.1.2-Beta and is under active development. All core features are functional and tested. UI/UX improvements and additional dashboard features are ongoing. Test thoroughly before production deployment.
 
 ---
 

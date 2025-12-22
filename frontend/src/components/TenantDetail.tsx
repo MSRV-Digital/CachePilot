@@ -5,7 +5,7 @@
  * 
  * @author Patrick Schlesinger <cachepilot@msrv-digital.de>
  * @company MSRV Digital
- * @version 2.1.0-beta
+ * @version 2.1.2-Beta
  * @license MIT
  * 
  * Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
@@ -16,7 +16,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useTenant, useStartTenant, useStopTenant, useRestartTenant, useDeleteTenant } from '../hooks/useTenants';
 import { useCreateBackup, useListBackups, useDeleteBackup, useRestoreBackup } from '../hooks/useMonitoring';
 import { ArrowLeft, Play, Square, RotateCw, Trash2, Download, Copy, RefreshCw, Key, Upload } from 'lucide-react';
-import { getStatusColor, formatUptime, formatBytes } from '../utils/format';
+import { getStatusColor, formatUptime, formatBytes, formatMB } from '../utils/format';
 import { getApiClient } from '../api/client';
 
 const TenantDetail: React.FC = () => {
@@ -268,10 +268,21 @@ const TenantDetail: React.FC = () => {
                 <td className="py-2 text-gray-600">Name</td>
                 <td className="py-2 font-mono font-semibold">{tenant.tenant}</td>
               </tr>
-              <tr className="border-b border-gray-200">
-                <td className="py-2 text-gray-600">Port</td>
-                <td className="py-2 font-mono">{tenant.port}</td>
-              </tr>
+              {tenant.port_tls && (
+                <tr className="border-b border-gray-200">
+                  <td className="py-2 text-gray-600">TLS Port</td>
+                  <td className="py-2 font-mono">{tenant.port_tls}</td>
+                </tr>
+              )}
+              {tenant.port_plain && (
+                <tr className="border-b border-gray-200">
+                  <td className="py-2 text-gray-600">Plain-Text Port</td>
+                  <td className="py-2">
+                    <span className="font-mono">{tenant.port_plain}</span>
+                    <span className="ml-2 text-xs text-yellow-600">⚠ Not encrypted</span>
+                  </td>
+                </tr>
+              )}
               <tr className="border-b border-gray-200">
                 <td className="py-2 text-gray-600">Status</td>
                 <td className="py-2">
@@ -289,6 +300,83 @@ const TenantDetail: React.FC = () => {
         </div>
 
         <div className="card">
+          <h2 className="text-lg font-semibold mb-4">Security Configuration</h2>
+          <table className="w-full text-sm">
+            <tbody>
+              <tr className="border-b border-gray-200">
+                <td className="py-2 text-gray-600">Security Mode</td>
+                <td className="py-2">
+                  <span className="font-semibold">
+                    {tenant.security_mode || 'tls-only'}
+                  </span>
+                </td>
+              </tr>
+              {tenant.port_tls && (
+                <tr className="border-b border-gray-200">
+                  <td className="py-2 text-gray-600">TLS Port</td>
+                  <td className="py-2 font-mono">{tenant.port_tls}</td>
+                </tr>
+              )}
+              {tenant.port_plain && (
+                <tr className="border-b border-gray-200">
+                  <td className="py-2 text-gray-600">Plain-Text Port</td>
+                  <td className="py-2">
+                    <span className="font-mono">{tenant.port_plain}</span>
+                    <span className="ml-2 text-xs text-yellow-600">⚠ Not encrypted</span>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          
+          {/* Change Security Mode */}
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <h3 className="text-sm font-semibold mb-2">Change Security Mode</h3>
+            <div className="flex items-center space-x-2">
+              <select
+                className="input flex-1"
+                value={tenant.security_mode || 'tls-only'}
+                onChange={(e) => {
+                  const newMode = e.target.value;
+                  if (newMode === (tenant.security_mode || 'tls-only')) {
+                    return;
+                  }
+                  if (!window.confirm(`Change security mode to ${newMode}? This will restart the tenant and may allocate new ports.`)) {
+                    e.target.value = tenant.security_mode || 'tls-only';
+                    return;
+                  }
+                  setActionMessage(null);
+                  getApiClient().changeSecurityMode(tenant.tenant, newMode)
+                    .then(() => {
+                      setActionMessage({ type: 'success', text: `Security mode changed to ${newMode}. Reloading...` });
+                      setTimeout(async () => {
+                        await refetch();
+                        setActionMessage(null);
+                      }, 2000);
+                    })
+                    .catch((error) => {
+                      const errorMessage = error instanceof Error ? error.message : 'Failed to change mode';
+                      setActionMessage({ type: 'error', text: errorMessage });
+                      setTimeout(() => setActionMessage(null), 8000);
+                      e.target.value = tenant.security_mode || 'tls-only';
+                    });
+                }}
+                id="change-security-mode"
+              >
+                <option value="tls-only">TLS Only</option>
+                <option value="dual-mode">Dual Mode</option>
+                <option value="plain-only">Plain-Text Only</option>
+              </select>
+            </div>
+            <p className="text-xs text-gray-600 mt-2">
+              Changing the security mode will restart the tenant and may allocate new ports.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="card">
           <h2 className="text-lg font-semibold mb-4">Resource Usage</h2>
           <table className="w-full text-sm">
             <tbody>
@@ -297,12 +385,16 @@ const TenantDetail: React.FC = () => {
                 <td className="py-2 font-mono">{tenant.memory_used || 'N/A'}</td>
               </tr>
               <tr className="border-b border-gray-200">
+                <td className="py-2 text-gray-600">Memory Peak</td>
+                <td className="py-2 font-mono">{tenant.memory_peak || 'N/A'}</td>
+              </tr>
+              <tr className="border-b border-gray-200">
                 <td className="py-2 text-gray-600">Max Memory</td>
-                <td className="py-2 font-mono">{tenant.maxmemory ? formatBytes(tenant.maxmemory) : 'N/A'}</td>
+                <td className="py-2 font-mono">{tenant.maxmemory ? formatMB(tenant.maxmemory) : 'N/A'}</td>
               </tr>
               <tr className="border-b border-gray-200">
                 <td className="py-2 text-gray-600">Docker Limit</td>
-                <td className="py-2 font-mono">{tenant.docker_limit ? formatBytes(tenant.docker_limit) : 'N/A'}</td>
+                <td className="py-2 font-mono">{tenant.docker_limit ? formatMB(tenant.docker_limit) : 'N/A'}</td>
               </tr>
               <tr className="border-b border-gray-200">
                 <td className="py-2 text-gray-600">Connected Clients</td>
@@ -311,6 +403,40 @@ const TenantDetail: React.FC = () => {
               <tr>
                 <td className="py-2 text-gray-600">Total Keys</td>
                 <td className="py-2 font-mono">{tenant.keys || '0'}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="card">
+          <h2 className="text-lg font-semibold mb-4">Performance Statistics</h2>
+          <table className="w-full text-sm">
+            <tbody>
+              <tr className="border-b border-gray-200">
+                <td className="py-2 text-gray-600">Total Commands</td>
+                <td className="py-2 font-mono">{tenant.total_commands ? parseInt(tenant.total_commands).toLocaleString() : 'N/A'}</td>
+              </tr>
+              <tr className="border-b border-gray-200">
+                <td className="py-2 text-gray-600">Cache Hit Rate</td>
+                <td className="py-2 font-mono">
+                  {tenant.hit_rate && tenant.hit_rate !== 'N/A' ? (
+                    <span className={tenant.hit_rate.replace('%', '') >= '80' ? 'text-green-600' : 'text-yellow-600'}>
+                      {tenant.hit_rate}
+                    </span>
+                  ) : 'N/A'}
+                </td>
+              </tr>
+              <tr className="border-b border-gray-200">
+                <td className="py-2 text-gray-600">Keyspace Hits</td>
+                <td className="py-2 font-mono">{tenant.keyspace_hits ? parseInt(tenant.keyspace_hits).toLocaleString() : '0'}</td>
+              </tr>
+              <tr className="border-b border-gray-200">
+                <td className="py-2 text-gray-600">Keyspace Misses</td>
+                <td className="py-2 font-mono">{tenant.keyspace_misses ? parseInt(tenant.keyspace_misses).toLocaleString() : '0'}</td>
+              </tr>
+              <tr>
+                <td className="py-2 text-gray-600">Evicted Keys</td>
+                <td className="py-2 font-mono">{tenant.evicted_keys || '0'}</td>
               </tr>
             </tbody>
           </table>
@@ -372,38 +498,72 @@ const TenantDetail: React.FC = () => {
                   </div>
                 )}
 
-                {/* WordPress Configuration */}
-                {handoverInfo.wordpress_config?.full_config && (
+                {/* TLS WordPress Configuration */}
+                {handoverInfo.tls_connection && (
                   <div className="border border-gray-200 p-4">
-                    <h3 className="font-semibold text-sm mb-2">WordPress Configuration</h3>
+                    <h3 className="font-semibold text-sm mb-2">WordPress Configuration (TLS - Recommended)</h3>
                     <p className="text-xs text-gray-600 mb-3">Add this to your <code className="bg-gray-100 px-1">wp-config.php</code> (before "That's all, stop editing!"):</p>
                     <pre className="bg-gray-900 text-gray-100 p-3 rounded text-xs overflow-x-auto whitespace-pre-wrap">
-{handoverInfo.wordpress_config.full_config}
+{handoverInfo.tls_connection.wordpress_config}
                     </pre>
                     <button
-                      onClick={() => copyToClipboard(handoverInfo.wordpress_config.full_config, 'WordPress configuration')}
+                      onClick={() => copyToClipboard(handoverInfo.tls_connection.wordpress_config, 'TLS WordPress configuration')}
                       className="btn mt-3 w-full flex items-center justify-center space-x-2"
                     >
                       <Copy className="w-4 h-4" />
-                      <span>Copy WordPress Config</span>
+                      <span>Copy TLS WordPress Config</span>
                     </button>
+                    
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <h4 className="font-semibold text-xs mb-2">TLS Connection String</h4>
+                      <p className="text-xs text-gray-600 mb-2">For direct Redis connections with TLS encryption:</p>
+                      <div className="flex items-center space-x-2">
+                        <code className="bg-gray-100 px-3 py-2 text-xs flex-1 overflow-x-auto">{handoverInfo.tls_connection.connection_string}</code>
+                        <button
+                          onClick={() => copyToClipboard(handoverInfo.tls_connection.connection_string, 'TLS connection string')}
+                          className="text-gray-600 hover:text-gray-900"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
 
-                {/* Connection String */}
-                <div className="border border-gray-200 p-4">
-                  <h3 className="font-semibold text-sm mb-2">Connection String</h3>
-                  <p className="text-xs text-gray-600 mb-2">Use this for direct Redis connections (rediss:// indicates TLS):</p>
-                  <div className="flex items-center space-x-2">
-                    <code className="bg-gray-100 px-3 py-2 text-xs flex-1 overflow-x-auto">{handoverInfo.connection_string}</code>
+                {/* Plain-Text WordPress Configuration */}
+                {handoverInfo.plaintext_connection && (
+                  <div className="border border-yellow-200 bg-yellow-50 p-4">
+                    <h3 className="font-semibold text-sm mb-2">WordPress Configuration (Plain-Text - Alternative)</h3>
+                    <p className="text-xs text-gray-600 mb-3">
+                      Add this to your <code className="bg-gray-100 px-1">wp-config.php</code> if TLS is not available:
+                      <span className="block mt-1 text-yellow-700">⚠ Warning: Traffic is not encrypted</span>
+                    </p>
+                    <pre className="bg-gray-900 text-gray-100 p-3 rounded text-xs overflow-x-auto whitespace-pre-wrap">
+{handoverInfo.plaintext_connection.wordpress_config}
+                    </pre>
                     <button
-                      onClick={() => copyToClipboard(handoverInfo.connection_string, 'Connection string')}
-                      className="text-gray-600 hover:text-gray-900"
+                      onClick={() => copyToClipboard(handoverInfo.plaintext_connection.wordpress_config, 'Plain-text WordPress configuration')}
+                      className="btn mt-3 w-full flex items-center justify-center space-x-2"
                     >
                       <Copy className="w-4 h-4" />
+                      <span>Copy Plain-Text WordPress Config</span>
                     </button>
+                    
+                    <div className="mt-4 pt-4 border-t border-yellow-200">
+                      <h4 className="font-semibold text-xs mb-2">Plain-Text Connection String</h4>
+                      <p className="text-xs text-gray-600 mb-2">For direct Redis connections without encryption:</p>
+                      <div className="flex items-center space-x-2">
+                        <code className="bg-gray-100 px-3 py-2 text-xs flex-1 overflow-x-auto">{handoverInfo.plaintext_connection.connection_string}</code>
+                        <button
+                          onClick={() => copyToClipboard(handoverInfo.plaintext_connection.connection_string, 'Plain-text connection string')}
+                          className="text-gray-600 hover:text-gray-900"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Regenerate Button */}
                 <div className="flex justify-end pt-2">

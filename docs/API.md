@@ -2,7 +2,7 @@
 
 Author: Patrick Schlesinger <cachepilot@msrv-digital.de>  
 Company: MSRV Digital  
-Version: 2.1.0-beta  
+Version: 2.1.2-Beta  
 License: MIT
 
 Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
@@ -159,9 +159,15 @@ POST /api/v1/tenants
   "tenant_name": "newclient",
   "maxmemory_mb": 256,
   "docker_limit_mb": 512,
-  "password": "optional-custom-password"
+  "password": "optional-custom-password",
+  "security_mode": "tls-only"
 }
 ```
+
+**Security Modes (v2.2+):**
+- `tls-only`: Default, requires CA certificate (most secure)
+- `dual-mode`: Both TLS and Plain-Text available
+- `plain-only`: Password-only, no certificate required
 
 **Response:**
 ```json

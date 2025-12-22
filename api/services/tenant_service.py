@@ -6,7 +6,7 @@ deletion, configuration, and operational control.
 
 Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
 Company: MSRV Digital
-Version: 2.1.0-beta
+Version: 2.1.2-Beta
 License: MIT
 
 Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
@@ -50,13 +50,13 @@ class TenantService:
         args = [
             validated_name,
             str(request.maxmemory_mb),
-            str(request.docker_limit_mb)
+            str(request.docker_limit_mb),
+            request.security_mode.value
         ]
         
         if request.password:
             args.append(request.password)
         
-        # Use extended timeout for tenant creation (container setup can take time)
         success, stdout, stderr = executor.execute_with_timeout("new", 120, *args)
         
         if success:
@@ -123,12 +123,10 @@ class TenantService:
                     key, value = line.split('=', 1)
                     config[key] = value
         
-        # Get status from CLI
         success, stdout, stderr = executor.execute("status", name)
         status_info = self._parse_status(stdout) if success else {}
         
-        # Determine status - map CLI output to expected values
-        cli_status = status_info.get('status', 'unknown').lower()
+        cli_status = status_info.get('redis_statistics_status', status_info.get('status', 'unknown')).lower()
         if 'running' in cli_status or 'ok' in cli_status or cli_status == 'healthy':
             status = 'running'
         elif 'stopped' in cli_status:
@@ -136,42 +134,53 @@ class TenantService:
         else:
             status = 'unknown'
         
-        # Parse uptime if available (handle both seconds and formatted strings)
+        # Parse uptime - now comes from Redis Statistics section
         uptime_seconds = 0
-        if status_info.get('uptime'):
-            uptime_str = status_info.get('uptime', '0')
-            # Try to parse as integer first (if it's just seconds)
-            try:
-                # Remove any non-numeric characters except first digit
-                if uptime_str.strip():
-                    # Handle formats like "12m", "12h", "12h 34m"
-                    parts = uptime_str.split()
-                    for part in parts:
-                        if 'h' in part:
-                            hours = int(part.replace('h', ''))
-                            uptime_seconds += hours * 3600
-                        elif 'm' in part:
-                            minutes = int(part.replace('m', ''))
-                            uptime_seconds += minutes * 60
-                        elif 's' in part:
-                            seconds = int(part.replace('s', ''))
-                            uptime_seconds += seconds
-                        else:
-                            # Just a number, assume seconds
-                            uptime_seconds = int(part)
-            except (ValueError, AttributeError):
-                uptime_seconds = 0
+        uptime_str = status_info.get('redis_statistics_uptime', '0')
+        try:
+            if uptime_str and uptime_str != 'N/A':
+                # Handle formats like "12m", "12h", "18h 34m"
+                parts = uptime_str.split()
+                for part in parts:
+                    part = part.strip()
+                    if 'd' in part:
+                        days = int(part.replace('d', ''))
+                        uptime_seconds += days * 86400
+                    elif 'h' in part:
+                        hours = int(part.replace('h', ''))
+                        uptime_seconds += hours * 3600
+                    elif 'm' in part:
+                        minutes = int(part.replace('m', ''))
+                        uptime_seconds += minutes * 60
+                    elif 's' in part:
+                        seconds = int(part.replace('s', ''))
+                        uptime_seconds += seconds
+        except (ValueError, AttributeError):
+            uptime_seconds = 0
+        
+        security_mode = config.get('SECURITY_MODE', 'tls-only')
+        port_tls = config.get('PORT_TLS', config.get('PORT', ''))
+        port_plain = config.get('PORT_PLAIN', '')
         
         tenant_data = {
             "tenant": name,
-            "port": config.get('PORT', ''),
+            "port": port_tls or port_plain,
+            "security_mode": security_mode,
+            "port_tls": port_tls,
+            "port_plain": port_plain,
             "status": status,
-            "memory_used": status_info.get('memory_used'),
-            "clients": status_info.get('connected_clients', '0'),
-            "keys": status_info.get('total_keys', '0'),
+            "memory_used": status_info.get('redis_statistics_memory_used', status_info.get('memory_used', 'N/A')),
+            "clients": status_info.get('redis_statistics_connected_clients', status_info.get('connected_clients', '0')),
+            "keys": status_info.get('redis_statistics_total_keys', status_info.get('total_keys', '0')),
             "uptime_seconds": uptime_seconds,
             "maxmemory": int(config.get('MAXMEMORY', '256')),
-            "docker_limit": int(config.get('DOCKER_LIMIT', '512'))
+            "docker_limit": int(config.get('DOCKER_LIMIT', '512')),
+            "total_commands": status_info.get('redis_statistics_total_commands', '0'),
+            "keyspace_hits": status_info.get('redis_statistics_keyspace_hits', '0'),
+            "keyspace_misses": status_info.get('redis_statistics_keyspace_misses', '0'),
+            "hit_rate": status_info.get('redis_statistics_hit_rate', 'N/A'),
+            "memory_peak": status_info.get('redis_statistics_memory_peak', 'N/A'),
+            "evicted_keys": status_info.get('redis_statistics_evicted_keys', '0')
         }
         
         return {
@@ -181,21 +190,63 @@ class TenantService:
         }
     
     def list_tenants(self) -> Dict[str, Any]:
-        success, stdout, stderr = executor.execute("list")
+        """List all tenants by reading filesystem directly - avoids subprocess timeout"""
+        from pathlib import Path
+        import subprocess
         
-        if success:
-            tenants = self._parse_tenant_list(stdout)
-            return {
-                "success": True,
-                "message": f"Found {len(tenants)} tenants",
-                "data": {"tenants": tenants}
-            }
-        else:
-            return {
-                "success": False,
-                "message": "Failed to list tenants",
-                "error": stderr
-            }
+        tenants = []
+        tenants_dir = Path(self.settings.tenants_dir)
+        
+        # Get list of running containers quickly
+        try:
+            result = subprocess.run(
+                ["docker", "ps", "--format", "{{.Names}}"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False
+            )
+            running_containers = set(result.stdout.strip().split('\n')) if result.returncode == 0 else set()
+        except:
+            running_containers = set()
+        
+        for tenant_dir in tenants_dir.iterdir():
+            if not tenant_dir.is_dir():
+                continue
+                
+            config_file = tenant_dir / 'config.env'
+            if not config_file.exists():
+                continue
+            
+            # Read config
+            config = {}
+            with open(config_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        config[key] = value
+            
+            tenant_name = tenant_dir.name
+            port = config.get('PORT_TLS', config.get('PORT', ''))
+            
+            # Check if container is running
+            status = "running" if f"redis-{tenant_name}" in running_containers else "stopped"
+            
+            tenants.append({
+                "tenant": tenant_name,
+                "port": port,
+                "status": status,
+                "security_mode": config.get('SECURITY_MODE', 'tls-only'),
+                "port_tls": config.get('PORT_TLS', ''),
+                "port_plain": config.get('PORT_PLAIN', '')
+            })
+        
+        return {
+            "success": True,
+            "message": f"Found {len(tenants)} tenants",
+            "data": {"tenants": tenants}
+        }
     
     def update_tenant(self, name: str, updates: TenantUpdateRequest) -> Dict[str, Any]:
         try:
@@ -402,90 +453,97 @@ class TenantService:
             with open(ca_cert_path, 'r') as f:
                 ca_certificate = f.read()
         
-        port = config.get('PORT', '6379')
+        security_mode = config.get('SECURITY_MODE', 'tls-only')
+        port_tls = config.get('PORT_TLS', config.get('PORT', '6379'))
+        port_plain = config.get('PORT_PLAIN', '')
         password = config.get('PASSWORD', '')
         
-        # Generate full WordPress configuration
-        wp_config_full = f"""// Redis Object Cache Configuration
-define('WP_REDIS_CLIENT', 'phpredis');
+        # WordPress configuration for TLS mode
+        wp_config_tls = f"""define('WP_REDIS_CLIENT', 'phpredis');
 define('WP_REDIS_SCHEME', 'tls');
 define('WP_REDIS_HOST', '{internal_ip}');
-define('WP_REDIS_PORT', {port});
+define('WP_REDIS_PORT', {port_tls});
 define('WP_REDIS_PASSWORD', '{password}');
 define('WP_REDIS_PREFIX', 'wp:');
-define('WP_REDIS_DATABASE', 0);
-define('WP_REDIS_TIMEOUT', 1);
-define('WP_REDIS_READ_TIMEOUT', 1);
 
-// TLS Configuration
-$redis_tls_options = [
+$redis_options = [
     'verify_peer' => true,
     'verify_peer_name' => true,
-    'cafile' => ABSPATH . 'redis/ca.crt'
+    'cafile' => ABSPATH . 'redis/redis-ca.pem'
 ];
-define('WP_REDIS_SSL_CONTEXT', $redis_tls_options);"""
+define('WP_REDIS_SSL_CONTEXT', $redis_options);"""
         
-        # Generate credentials text
-        credentials_text = f"""===========================================
-Redis Connection Details
-
+        # WordPress configuration for plain-text mode
+        wp_config_plain = f"""define('WP_REDIS_CLIENT', 'phpredis');
+define('WP_REDIS_HOST', '{internal_ip}');
+define('WP_REDIS_PORT', {port_plain});
+define('WP_REDIS_PASSWORD', '{password}');
+define('WP_REDIS_PREFIX', 'wp:');"""
+        
+        credentials_text = f"""Redis Connection Details
 Tenant: {name}
+Security Mode: {security_mode}
 Created: {config.get('CREATED', 'N/A')}
 
-Connection:
------------
-Internal Host: {internal_ip}
-Public Host: {public_ip}
-Port: {port}
-Password: {password}
-
-TLS: Enabled
-CA Certificate: Required (see below)
-
-Memory Limits:
---------------
-Redis Maxmemory: {config.get('MAXMEMORY', '256')} MB
-Docker Limit: {config.get('DOCKER_LIMIT', '512')} MB
-
-Contact:
---------
-{org_name}
-{contact_name}
-Email: {contact_email}
-Phone: {contact_phone}
-Web: {contact_web}
 """
         
-        # Get tenant status
+        if security_mode in ['tls-only', 'dual-mode'] and port_tls:
+            credentials_text += f"""TLS Connection:
+  Host: {internal_ip}
+  Port: {port_tls}
+  Password: {password}
+  Requires: CA Certificate
+
+"""
+        
+        if security_mode in ['dual-mode', 'plain-only'] and port_plain:
+            credentials_text += f"""Plain-Text Connection:
+  Host: {internal_ip}
+  Port: {port_plain}
+  Password: {password}
+  No certificate required
+
+"""
+        
+        credentials_text += f"""Memory Limits:
+  Redis: {config.get('MAXMEMORY', '256')} MB
+  Docker: {config.get('DOCKER_LIMIT', '512')} MB
+
+Contact: {org_name}
+Email: {contact_email}
+"""
+        
         success, stdout, stderr = executor.execute("status", name)
         tenant_status = self._parse_status(stdout) if success else {}
         
-        # Get handover package path
         handover_dir = tenant_dir / 'handover'
         handover_file = handover_dir / f'{name}-handover.zip'
         
         handover_data = {
             "tenant": name,
+            "security_mode": security_mode,
             "host": internal_ip,
             "public_host": public_ip,
-            "port": port,
             "password": password,
-            "tls_enabled": True,
             "ca_certificate": ca_certificate,
-            "connection_string": f"rediss://:{password}@{internal_ip}:{port}",
             "status": tenant_status.get('status', 'unknown'),
             "handover_package": str(handover_file) if handover_file.exists() else None,
-            "wordpress_config": {
-                "host": internal_ip,
-                "port": int(port),
-                "password": password,
-                "database": 0,
-                "timeout": 1,
-                "read_timeout": 1,
-                "full_config": wp_config_full
-            },
             "credentials_text": credentials_text
         }
+        
+        if security_mode in ['tls-only', 'dual-mode'] and port_tls:
+            handover_data["tls_connection"] = {
+                "port": int(port_tls),
+                "connection_string": f"rediss://:{password}@{internal_ip}:{port_tls}",
+                "wordpress_config": wp_config_tls
+            }
+        
+        if security_mode in ['dual-mode', 'plain-only'] and port_plain:
+            handover_data["plaintext_connection"] = {
+                "port": int(port_plain),
+                "connection_string": f"redis://:{password}@{internal_ip}:{port_plain}",
+                "wordpress_config": wp_config_plain
+            }
         
         return {
             "success": True,
@@ -510,6 +568,39 @@ Web: {contact_web}
                 "error": "Handover regeneration failed"
             }
     
+    def change_security_mode(self, name: str, security_mode: str) -> Dict[str, Any]:
+        """Change security mode for a tenant"""
+        try:
+            validated_name = sanitize_tenant_name(name)
+            if security_mode not in ['tls-only', 'dual-mode', 'plain-only']:
+                return {
+                    "success": False,
+                    "message": "Invalid security mode",
+                    "error": "Security mode must be one of: tls-only, dual-mode, plain-only"
+                }
+        except ValidationError as e:
+            logger.warning(f"Security mode change validation failed: {e}")
+            return {
+                "success": False,
+                "message": "Validation error",
+                "error": str(e)
+            }
+        
+        success, stdout, stderr = executor.execute("set-access", validated_name, security_mode)
+        
+        if success:
+            return {
+                "success": True,
+                "message": f"Security mode changed to {security_mode} for tenant {name}",
+                "data": {"tenant": name, "security_mode": security_mode}
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Failed to change security mode",
+                "error": stderr or stdout or "Mode change failed"
+            }
+    
     def _parse_status(self, output: str) -> Dict[str, Any]:
         # Strip ANSI escape codes
         ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
@@ -517,12 +608,33 @@ Web: {contact_web}
         
         lines = output.strip().split('\n')
         status = {}
+        current_section = None
         
         for line in lines:
+            # Check for indentation BEFORE stripping
+            is_indented = line.startswith('  ')
+            line = line.strip()
+            
+            if not line or line.startswith('='):
+                continue
+            
+            # Detect section headers (lines ending with : and no other :)
+            if line.endswith(':') and line.count(':') == 1:
+                current_section = line[:-1].lower().replace(' ', '_')
+                continue
+            
+            # Parse key-value pairs
             if ':' in line:
                 key, value = line.split(':', 1)
                 clean_key = key.strip().lower().replace(' ', '_')
                 clean_value = value.strip()
+                
+                # Store with section prefix if in a section and indented
+                if current_section and is_indented:
+                    full_key = f"{current_section}_{clean_key}"
+                    status[full_key] = clean_value
+                
+                # Also store without prefix for backward compatibility
                 status[clean_key] = clean_value
         
         return status

@@ -7,7 +7,7 @@
 #
 # Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
 # Company: MSRV Digital
-# Version: 2.1.0-beta
+# Version: 2.1.2-Beta
 # License: MIT
 # Repository: https://github.com/MSRV-Digital/CachePilot
 #
@@ -20,7 +20,18 @@ fi
 
 create_tenant() {
     local tenant="$1"
+    local maxmemory="${2:-256}"
+    local docker_limit="${3:-}"
+    local security_mode="${4:-tls-only}"
+    local custom_password="${5:-}"
     local user="${AUDIT_USER:-${USER:-system}}"
+    
+    # Handle docker_limit - calculate default or validate
+    if [[ -z "$docker_limit" ]] || [[ "$docker_limit" == "no" ]] || [[ "$docker_limit" == "yes" ]]; then
+        # Calculate default: maxmemory * 2
+        docker_limit=$((maxmemory * 2))
+        log "Docker limit not specified or invalid, using default: ${docker_limit}MB"
+    fi
     
     validate_tenant_name "$tenant"
     
@@ -28,21 +39,51 @@ create_tenant() {
         error "Tenant '$tenant' already exists"
     fi
     
-    log_audit "$user" "tenant_create" "$tenant" "{\"status\":\"started\"}"
+    # Validate security mode
+    if [[ ! "$security_mode" =~ ^(tls-only|dual-mode|plain-only)$ ]]; then
+        error "Invalid security mode: $security_mode. Valid options: tls-only, dual-mode, plain-only"
+    fi
     
-    log "Creating new tenant: $tenant"
+    log_audit "$user" "tenant_create" "$tenant" "{\"status\":\"started\",\"security_mode\":\"$security_mode\"}"
     
-    local port=$(get_next_port)
+    log "Creating new tenant: $tenant (mode: $security_mode)"
+    
+    # Allocate ports based on security mode
+    local port_tls=""
+    local port_plain=""
+    
+    case "$security_mode" in
+        "tls-only")
+            port_tls=$(get_next_tls_port)
+            log "Allocated TLS port: $port_tls"
+            ;;
+        "dual-mode")
+            port_tls=$(get_next_tls_port)
+            # Try to use paired port (+300 offset), fallback to next available
+            port_plain=$(calculate_plain_port_from_tls "$port_tls")
+            if port_is_in_use "$port_plain"; then
+                port_plain=$(get_next_plain_port)
+                warn "Paired port not available, using: $port_plain"
+            fi
+            log "Allocated TLS port: $port_tls, Plain-Text port: $port_plain"
+            ;;
+        "plain-only")
+            port_plain=$(get_next_plain_port)
+            log "Allocated Plain-Text port: $port_plain"
+            ;;
+    esac
+    
     local password=$(generate_password)
-    local maxmemory=256
-    local docker_limit=512
     local tenant_dir="${TENANTS_DIR}/${tenant}"
     
     mkdir -p "${tenant_dir}"/{data,certs,handover}
     
+    # Create config.env with new format
     cat > "${tenant_dir}/config.env" << EOF
 TENANT=${tenant}
-PORT=${port}
+SECURITY_MODE=${security_mode}
+PORT_TLS=${port_tls}
+PORT_PLAIN=${port_plain}
 PASSWORD=${password}
 MAXMEMORY=${maxmemory}
 DOCKER_LIMIT=${docker_limit}
@@ -52,29 +93,48 @@ BACKUP_ENABLED=true
 BACKUP_SCHEDULE=daily
 EOF
     
+    # Generate TLS certificates (even for plain-only, in case mode is changed later)
     log "Generating TLS certificates..."
     generate_tenant_cert "$tenant"
     cp "${CA_DIR}/ca.crt" "${tenant_dir}/certs/"
     
     log "Creating Redis configuration..."
-    create_redis_config "$tenant" "$password" "$maxmemory"
+    create_redis_config "$tenant" "$password" "$maxmemory" "$security_mode"
     
     log "Creating Docker Compose configuration..."
-    create_docker_compose "$tenant" "$port" "$password" "$maxmemory" "$docker_limit"
+    create_docker_compose "$tenant" "$port_tls" "$password" "$maxmemory" "$docker_limit" "$security_mode" "$port_plain"
     
     log "Starting container..."
     if start_container "$tenant"; then
         log "Generating handover package..."
         generate_handover "$tenant"
         
-        log_audit "$user" "tenant_create" "$tenant" "{\"status\":\"success\",\"port\":$port}"
+        log_audit "$user" "tenant_create" "$tenant" "{\"status\":\"success\",\"security_mode\":\"$security_mode\",\"port_tls\":\"$port_tls\",\"port_plain\":\"$port_plain\"}"
         
         echo ""
         success "Tenant created successfully: $tenant"
         echo ""
+        echo "Security Mode: $security_mode"
         echo "Connection Details:"
         echo "  Host: ${INTERNAL_IP}"
-        echo "  Port: $port"
+        
+        case "$security_mode" in
+            "tls-only")
+                echo "  TLS Port: $port_tls"
+                echo "  Connection: rediss://:${password}@${INTERNAL_IP}:${port_tls}"
+                ;;
+            "dual-mode")
+                echo "  TLS Port: $port_tls"
+                echo "  Plain-Text Port: $port_plain"
+                echo "  TLS Connection: rediss://:${password}@${INTERNAL_IP}:${port_tls}"
+                echo "  Plain Connection: redis://:${password}@${INTERNAL_IP}:${port_plain}"
+                ;;
+            "plain-only")
+                echo "  Plain-Text Port: $port_plain"
+                echo "  Connection: redis://:${password}@${INTERNAL_IP}:${port_plain}"
+                ;;
+        esac
+        
         echo "  Password: $password"
         echo ""
         echo "Handover package: ${tenant_dir}/handover/${tenant}-handover.zip"
@@ -198,7 +258,12 @@ set_memory_limits() {
     
     sed -i "s/^maxmemory .*/maxmemory ${maxmemory}mb/" "${tenant_dir}/redis.conf"
     
-    create_docker_compose "$tenant" "$PORT" "$PASSWORD" "$maxmemory" "$docker_limit"
+    # Use appropriate variables based on security mode
+    local port_tls="${PORT_TLS:-}"
+    local port_plain="${PORT_PLAIN:-}"
+    local security_mode="${SECURITY_MODE:-tls-only}"
+    
+    create_docker_compose "$tenant" "$port_tls" "$PASSWORD" "$maxmemory" "$docker_limit" "$security_mode" "$port_plain"
     
     log "Restarting container..."
     restart_container "$tenant"
@@ -224,7 +289,12 @@ rotate_password() {
     sed -i "s/^PASSWORD=.*/PASSWORD=${new_password}/" "${tenant_dir}/config.env"
     sed -i "s/^requirepass .*/requirepass ${new_password}/" "${tenant_dir}/redis.conf"
     
-    create_docker_compose "$tenant" "$PORT" "$new_password" "$MAXMEMORY" "$DOCKER_LIMIT"
+    # Use appropriate variables based on security mode
+    local port_tls="${PORT_TLS:-}"
+    local port_plain="${PORT_PLAIN:-}"
+    local security_mode="${SECURITY_MODE:-tls-only}"
+    
+    create_docker_compose "$tenant" "$port_tls" "$new_password" "$MAXMEMORY" "$DOCKER_LIMIT" "$security_mode" "$port_plain"
     
     log "Restarting container..."
     restart_container "$tenant"
@@ -236,6 +306,119 @@ rotate_password() {
     
     success "Password rotated for tenant: $tenant"
     echo "New password: $new_password"
+    echo "New handover package: ${tenant_dir}/handover/${tenant}-handover.zip"
+}
+
+set_access_mode() {
+    local tenant="$1"
+    local new_mode="$2"
+    local user="${AUDIT_USER:-${USER:-system}}"
+    
+    require_tenant "$tenant"
+    
+    # Validate security mode
+    if [[ ! "$new_mode" =~ ^(tls-only|dual-mode|plain-only)$ ]]; then
+        error "Invalid security mode: $new_mode. Valid options: tls-only, dual-mode, plain-only"
+    fi
+    
+    local tenant_dir="${TENANTS_DIR}/${tenant}"
+    source "${tenant_dir}/config.env"
+    
+    local current_mode="${SECURITY_MODE:-tls-only}"
+    
+    if [[ "$current_mode" == "$new_mode" ]]; then
+        warn "Tenant is already in $new_mode mode"
+        return 0
+    fi
+    
+    log "Changing security mode for tenant: $tenant"
+    log "  Current mode: $current_mode"
+    log "  New mode: $new_mode"
+    
+    # Handle port allocation based on mode change
+    local port_tls="${PORT_TLS:-${PORT:-}}"
+    local port_plain="${PORT_PLAIN:-}"
+    
+    case "$new_mode" in
+        "tls-only")
+            # Switching to TLS only - ensure we have TLS port
+            if [[ -z "$port_tls" ]]; then
+                port_tls=$(get_next_tls_port)
+                log "Allocated new TLS port: $port_tls"
+            fi
+            port_plain=""  # Clear plain port
+            ;;
+        "dual-mode")
+            # Switching to dual mode - ensure we have both ports
+            if [[ -z "$port_tls" ]]; then
+                port_tls=$(get_next_tls_port)
+                log "Allocated new TLS port: $port_tls"
+            fi
+            if [[ -z "$port_plain" ]]; then
+                port_plain=$(calculate_plain_port_from_tls "$port_tls")
+                if port_is_in_use "$port_plain"; then
+                    port_plain=$(get_next_plain_port)
+                fi
+                log "Allocated new Plain-Text port: $port_plain"
+            fi
+            ;;
+        "plain-only")
+            # Switching to plain only - ensure we have plain port
+            if [[ -z "$port_plain" ]]; then
+                port_plain=$(get_next_plain_port)
+                log "Allocated new Plain-Text port: $port_plain"
+            fi
+            # Keep TLS port in config but don't use it
+            ;;
+    esac
+    
+    # Update config.env
+    sed -i "s/^SECURITY_MODE=.*/SECURITY_MODE=${new_mode}/" "${tenant_dir}/config.env"
+    sed -i "s/^PORT_TLS=.*/PORT_TLS=${port_tls}/" "${tenant_dir}/config.env"
+    sed -i "s/^PORT_PLAIN=.*/PORT_PLAIN=${port_plain}/" "${tenant_dir}/config.env"
+    
+    # Regenerate Redis configuration
+    log "Updating Redis configuration..."
+    create_redis_config "$tenant" "$PASSWORD" "$MAXMEMORY" "$new_mode"
+    
+    # Regenerate Docker Compose configuration
+    log "Updating Docker Compose configuration..."
+    create_docker_compose "$tenant" "$port_tls" "$PASSWORD" "$MAXMEMORY" "$DOCKER_LIMIT" "$new_mode" "$port_plain"
+    
+    # Restart container
+    log "Restarting container..."
+    restart_container "$tenant"
+    
+    # Regenerate handover package
+    log "Regenerating handover package..."
+    generate_handover "$tenant"
+    
+    log_audit "$user" "tenant_modify" "$tenant" "{\"action\":\"set_access_mode\",\"old_mode\":\"$current_mode\",\"new_mode\":\"$new_mode\"}"
+    
+    echo ""
+    success "Security mode updated for tenant: $tenant"
+    echo ""
+    echo "New Security Mode: $new_mode"
+    echo "Connection Details:"
+    echo "  Host: ${INTERNAL_IP}"
+    
+    case "$new_mode" in
+        "tls-only")
+            echo "  TLS Port: $port_tls"
+            echo "  Connection: rediss://:${PASSWORD}@${INTERNAL_IP}:${port_tls}"
+            ;;
+        "dual-mode")
+            echo "  TLS Port: $port_tls"
+            echo "  Plain-Text Port: $port_plain"
+            echo "  TLS Connection: rediss://:${PASSWORD}@${INTERNAL_IP}:${port_tls}"
+            echo "  Plain Connection: redis://:${PASSWORD}@${INTERNAL_IP}:${port_plain}"
+            ;;
+        "plain-only")
+            echo "  Plain-Text Port: $port_plain"
+            echo "  Connection: redis://:${PASSWORD}@${INTERNAL_IP}:${port_plain}"
+            ;;
+    esac
+    echo ""
     echo "New handover package: ${tenant_dir}/handover/${tenant}-handover.zip"
 }
 

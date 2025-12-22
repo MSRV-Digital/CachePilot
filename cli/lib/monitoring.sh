@@ -7,7 +7,7 @@
 #
 # Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
 # Company: MSRV Digital
-# Version: 2.1.0-beta
+# Version: 2.1.2-Beta
 # License: MIT
 # Repository: https://github.com/MSRV-Digital/CachePilot
 #
@@ -29,9 +29,25 @@ get_redis_info() {
     
     source "${tenant_dir}/config.env"
     
-    docker exec --workdir / "redis-${tenant}" redis-cli --tls --cacert /certs/ca.crt \
-        --cert /certs/redis.crt --key /certs/redis.key \
-        -a "$PASSWORD" INFO 2>/dev/null
+    local security_mode="${SECURITY_MODE:-tls-only}"
+    local redis_cli_cmd="docker exec redis-${tenant} redis-cli"
+    
+    # Determine which port to use based on security mode
+    case "$security_mode" in
+        "tls-only"|"dual-mode")
+            # Use TLS connection on internal port 6380
+            redis_cli_cmd="$redis_cli_cmd -p 6380 --tls --cacert /certs/ca.crt --cert /certs/redis.crt --key /certs/redis.key"
+            ;;
+        "plain-only")
+            # Use plain-text connection on internal port 6379
+            redis_cli_cmd="$redis_cli_cmd -p 6379"
+            ;;
+    esac
+    
+    redis_cli_cmd="$redis_cli_cmd -a ${PASSWORD}"
+    
+    # Add 5 second timeout to prevent hanging
+    timeout 5 $redis_cli_cmd INFO 2>&1 | grep -v "Using a password"
 }
 
 show_tenant_status() {
@@ -40,6 +56,8 @@ show_tenant_status() {
     
     local tenant_dir="${TENANTS_DIR}/${tenant}"
     source "${tenant_dir}/config.env"
+    
+    local port="${PORT_TLS:-${PORT:-}}"
     
     echo ""
     echo "=========================================="
@@ -57,7 +75,7 @@ show_tenant_status() {
     
     echo "Connection:"
     echo "  Host: ${INTERNAL_IP}"
-    echo "  Port: $PORT"
+    echo "  Port: $port"
     echo "  Created: $CREATED"
     echo ""
     
@@ -159,6 +177,7 @@ list_all_tenants() {
             local tenant=$(basename "$tenant_dir")
             source "${tenant_dir}/config.env"
             
+            local port="${PORT_TLS:-${PORT:-}}"
             local status="STOPPED"
             local memory="-"
             local limit="${MAXMEMORY:-256}/${DOCKER_LIMIT:-512}MB"
@@ -193,7 +212,7 @@ list_all_tenants() {
             fi
             
             printf "%-20s %-8s %-8b %-15s %-15s %-12s %-10s %-10s %-8b\n" \
-                "$tenant" "$PORT" "$status" "$memory" "$limit" "$clients" "$keys" "$uptime" "$insight"
+                "$tenant" "$port" "$status" "$memory" "$limit" "$clients" "$keys" "$uptime" "$insight"
         fi
     done
     
@@ -258,9 +277,15 @@ show_global_stats() {
         printf "%-20s %-15s %-12s\n" "TENANT" "MEMORY" "CLIENTS"
         printf "%-20s %-15s %-12s\n" "--------------------" "---------------" "------------"
         
+        # Use array instead of while read to avoid subprocess blocking
+        local -a top_memory=()
         for tenant in "${!tenant_memory[@]}"; do
-            echo "$tenant ${tenant_memory[$tenant]:-0} ${tenant_clients[$tenant]:-0}"
-        done | sort -k2 -rn | head -10 | while read tenant mem clients; do
+            top_memory+=("$tenant ${tenant_memory[$tenant]:-0} ${tenant_clients[$tenant]:-0}")
+        done
+        
+        IFS=$'\n' sorted_memory=($(printf '%s\n' "${top_memory[@]}" | sort -k2 -rn | head -10))
+        for line in "${sorted_memory[@]}"; do
+            read -r tenant mem clients <<< "$line"
             printf "%-20s %-15s %-12s\n" "$tenant" "$(format_bytes ${mem:-0})" "${clients:-0}"
         done
         
@@ -275,9 +300,15 @@ show_global_stats() {
         printf "%-20s %-12s %-15s\n" "TENANT" "CLIENTS" "MEMORY"
         printf "%-20s %-12s %-15s\n" "--------------------" "------------" "---------------"
         
+        # Use array instead of while read to avoid subprocess blocking
+        local -a top_clients=()
         for tenant in "${!tenant_clients[@]}"; do
-            echo "$tenant ${tenant_clients[$tenant]:-0} ${tenant_memory[$tenant]:-0}"
-        done | sort -k2 -rn | head -10 | while read tenant clients mem; do
+            top_clients+=("$tenant ${tenant_clients[$tenant]:-0} ${tenant_memory[$tenant]:-0}")
+        done
+        
+        IFS=$'\n' sorted_clients=($(printf '%s\n' "${top_clients[@]}" | sort -k2 -rn | head -10))
+        for line in "${sorted_clients[@]}"; do
+            read -r tenant clients mem <<< "$line"
             printf "%-20s %-12s %-15s\n" "$tenant" "${clients:-0}" "$(format_bytes ${mem:-0})"
         done
         
@@ -397,29 +428,36 @@ show_global_stats_json() {
     local total_keys=0
     local total_commands=0
     
+    # Count total tenants quickly from directory
     for tenant_dir in "${TENANTS_DIR}"/*; do
         if [ -d "${tenant_dir}" ]; then
-            local tenant=$(basename "${tenant_dir}")
             ((total_tenants++))
-            
-            if docker ps --format '{{.Names}}' | grep -q "^redis-${tenant}$"; then
-                ((running_tenants++))
-                
-                local info=$(get_redis_info "${tenant}")
-                if [ -n "${info}" ]; then
-                    local used_mem=$(echo "${info}" | grep "^used_memory:" | cut -d: -f2 | tr -d '\r')
-                    local clients=$(echo "${info}" | grep "^connected_clients:" | cut -d: -f2 | tr -d '\r')
-                    local keys=$(echo "${info}" | grep "^db0:" | grep -oP 'keys=\K[0-9]+' || echo "0")
-                    local commands=$(echo "${info}" | grep "^total_commands_processed:" | cut -d: -f2 | tr -d '\r')
-                    
-                    total_memory=$((total_memory + used_mem))
-                    total_clients=$((total_clients + clients))
-                    total_keys=$((total_keys + keys))
-                    total_commands=$((total_commands + commands))
-                fi
-            fi
         fi
     done
+    
+    # Get running tenant count from docker (FAST)
+    running_tenants=$(docker ps --filter "name=redis-" --format "{{.Names}}" | grep -c "^redis-" || echo "0")
+    
+    # Use docker stats for memory (single fast call, no Redis connection needed)
+    if [ $running_tenants -gt 0 ]; then
+        # Get memory stats from docker (much faster than redis-cli INFO)
+        while IFS= read -r line; do
+            if [[ "$line" =~ redis- ]]; then
+                # Extract memory from docker stats format like "123.4MiB / 512MiB"
+                local mem_str=$(echo "$line" | awk '{print $4}')
+                # Convert to bytes (handle MiB/GiB)
+                if [[ "$mem_str" =~ ([0-9.]+)MiB ]]; then
+                    local mem_mib="${BASH_REMATCH[1]}"
+                    local mem_bytes=$(awk "BEGIN {printf \"%.0f\", $mem_mib * 1024 * 1024}")
+                    total_memory=$((total_memory + mem_bytes))
+                elif [[ "$mem_str" =~ ([0-9.]+)GiB ]]; then
+                    local mem_gib="${BASH_REMATCH[1]}"
+                    local mem_bytes=$(awk "BEGIN {printf \"%.0f\", $mem_gib * 1024 * 1024 * 1024}")
+                    total_memory=$((total_memory + mem_bytes))
+                fi
+            fi
+        done < <(docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" 2>/dev/null | grep "redis-")
+    fi
     
     local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     

@@ -6,7 +6,7 @@
 # for Git repository and backup creation
 #
 # Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
-# Version: 2.1.0-beta
+# Version: 2.1.2-Beta
 # License: MIT
 #
 
@@ -19,7 +19,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 echo "========================================"
-echo "CachePilot v2.1.0-beta Uninstallation"
+echo "CachePilot v2.1.2-Beta Uninstallation"
 echo "========================================"
 echo ""
 

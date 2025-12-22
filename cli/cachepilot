@@ -7,7 +7,7 @@
 #
 # Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
 # Company: MSRV Digital
-# Version: 2.1.0-beta
+# Version: 2.1.2-Beta
 # License: MIT
 # Repository: https://github.com/MSRV-Digital/CachePilot
 #
@@ -32,7 +32,7 @@ export CACHEPILOT_DIR
 export BASE_DIR
 export CONFIG_FILE
 
-VERSION="2.1.0-beta"
+VERSION="2.1.2-Beta"
 
 if [[ ! -f "$CONFIG_FILE" ]]; then
     echo "[ERROR] Configuration file not found: $CONFIG_FILE"
@@ -204,6 +204,7 @@ Monitoring & Statistics:
 
 Configuration:
   set-mem <tenant> <max> <hard>   Set memory limits (MB)
+  set-access <tenant> <mode>      Change security mode (tls-only, dual-mode, plain-only)
   rotate <tenant>                 Rotate password and regenerate handover
 
 Maintenance:
@@ -274,8 +275,8 @@ main() {
             exit 0
             ;;
         new)
-            [[ $# -lt 1 ]] && error "Usage: cachepilot new <tenant>"
-            create_tenant "$1"
+            [[ $# -lt 1 ]] && error "Usage: cachepilot new <tenant> [maxmemory_mb] [docker_limit_mb] [security_mode]"
+            create_tenant "$@"
             ;;
         status)
             [[ $# -lt 1 ]] && error "Usage: cachepilot status <tenant>"
@@ -299,6 +300,11 @@ main() {
         set-mem)
             [[ $# -lt 3 ]] && error "Usage: cachepilot set-mem <tenant> <maxmemory_mb> <docker_limit_mb>"
             set_memory_limits "$1" "$2" "$3"
+            ;;
+        set-access)
+            [[ $# -lt 2 ]] && error "Usage: cachepilot set-access <tenant> <mode>
+Valid modes: tls-only, dual-mode, plain-only"
+            set_access_mode "$1" "$2"
             ;;
         rotate)
             [[ $# -lt 1 ]] && error "Usage: cachepilot rotate <tenant>"

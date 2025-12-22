@@ -5,7 +5,7 @@
  * 
  * @author Patrick Schlesinger <cachepilot@msrv-digital.de>
  * @company MSRV Digital
- * @version 2.1.0-beta
+ * @version 2.1.2-Beta
  * @license MIT
  * 
  * Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
@@ -15,14 +15,21 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useCreateTenant } from '../hooks/useTenants';
 import { ArrowLeft } from 'lucide-react';
+import type { SecurityMode } from '../api/types';
 
 const CreateTenant: React.FC = () => {
   const navigate = useNavigate();
   const createMutation = useCreateTenant();
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    tenant_name: string;
+    maxmemory_mb: number;
+    docker_limit_mb: number;
+    security_mode: SecurityMode;
+  }>({
     tenant_name: '',
     maxmemory_mb: 256,
     docker_limit_mb: 512,
+    security_mode: 'tls-only',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -151,6 +158,31 @@ const CreateTenant: React.FC = () => {
             </p>
           </div>
 
+          {/* Security Mode */}
+          <div>
+            <label htmlFor="security_mode" className="block text-sm font-medium mb-2">
+              Security Mode *
+            </label>
+            <select
+              id="security_mode"
+              className="input"
+              value={formData.security_mode}
+              onChange={(e) => setFormData({ 
+                ...formData, 
+                security_mode: e.target.value as 'tls-only' | 'dual-mode' | 'plain-only' 
+              })}
+            >
+              <option value="tls-only">TLS Only (Most Secure - Recommended)</option>
+              <option value="dual-mode">Dual Mode (TLS + Plain-Text)</option>
+              <option value="plain-only">Plain-Text Only (Password Only)</option>
+            </select>
+            <p className="text-xs text-gray-600 mt-1">
+              <strong>TLS Only:</strong> Requires CA certificate, encrypted connection (port 7300-7599)<br />
+              <strong>Dual Mode:</strong> Both TLS and Plain-Text on separate ports<br />
+              <strong>Plain-Text:</strong> Password-only, no certificate required (port 7600-7899, not encrypted)
+            </p>
+          </div>
+
           {/* Submit Error */}
           {errors.submit && (
             <div className="p-4 bg-gray-100 border border-status-stopped">
@@ -178,10 +210,10 @@ const CreateTenant: React.FC = () => {
       <div className="card max-w-2xl bg-gray-50">
         <h3 className="text-sm font-semibold mb-2">What happens next?</h3>
         <ul className="text-xs space-y-1 text-gray-700">
-          <li>• Redis instance will be created with TLS encryption</li>
+          <li>• Redis instance will be created with your selected security mode</li>
           <li>• A secure password will be generated automatically</li>
-          <li>• Instance will start on an available port</li>
-          <li>• Connection details will be available in tenant view</li>
+          <li>• Instance will start on an available port (TLS: 7300-7599, Plain: 7600-7899)</li>
+          <li>• Connection details and credentials will be available in tenant view</li>
         </ul>
       </div>
     </div>

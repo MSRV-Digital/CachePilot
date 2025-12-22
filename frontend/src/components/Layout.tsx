@@ -5,7 +5,7 @@
  * 
  * @author Patrick Schlesinger <cachepilot@msrv-digital.de>
  * @company MSRV Digital
- * @version 2.1.0-beta
+ * @version 2.1.2-Beta
  * @license MIT
  * 
  * Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
@@ -101,7 +101,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between text-xs text-gray-600">
             <div>
-              CachePilot v2.1.0-beta | Patrick Schlesinger, MSRV Digital
+              CachePilot v2.1.2-Beta | Patrick Schlesinger, MSRV Digital
             </div>
             <div>
               Professional Multi-Tenant Redis Management

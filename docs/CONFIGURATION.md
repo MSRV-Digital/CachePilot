@@ -2,7 +2,7 @@
 
 Author: Patrick Schlesinger <cachepilot@msrv-digital.de>  
 Company: MSRV Digital  
-Version: 2.1.0-beta  
+Version: 2.1.2-Beta  
 License: MIT
 
 Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
@@ -11,7 +11,7 @@ Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
 
 **BETA SOFTWARE NOTICE**
 
-This configuration guide is part of CachePilot v2.1.0-beta. All documented options are functional. Configuration structure may evolve as the project approaches stable release. Review all configuration files before production use and test changes in staging first.
+This configuration guide is part of CachePilot v2.1.2-Beta. All documented options are functional. Configuration structure may evolve as the project approaches stable release. Review all configuration files before production use and test changes in staging first.
 
 ---
 
@@ -124,16 +124,34 @@ Network configuration for Redis and RedisInsight services.
 |-----|------|-------------|-------------|
 | `internal_ip` | string | Docker bridge IP | Any valid IP |
 | `public_ip` | string | External access IP | Any valid IP |
-| `redis_port_start` | integer | First Redis port | 1024-65535 |
-| `redis_port_end` | integer | Last Redis port | > redis_port_start |
+| `redis_port_start` | integer | First Redis TLS port | 1024-65535 |
+| `redis_port_end` | integer | Last Plain-Text port | > redis_port_start |
+| `redis_tls_port_end` | integer | Last TLS port / Split point | Between start and end |
+| `redis_plain_port_start` | integer | First Plain-Text port | > redis_tls_port_end |
 | `insight_port_start` | integer | First Insight port | 1024-65535 |
 | `insight_port_end` | integer | Last Insight port | > insight_port_start |
 
-**Port Range Rules:**
-- Ports must be in range 1024-65535 (non-privileged)
-- End port must be greater than start port
-- Ranges should not overlap with other services
-- Maximum tenants = redis_port_end - redis_port_start + 1
+**Port Range Strategy (v2.2+):**
+CachePilot supports dual-mode operation (TLS + Plain-Text) for up to 300 tenants:
+
+```yaml
+network:
+  redis_port_start: 7300        # Start of TLS range
+  redis_port_end: 7899          # End of entire range
+  redis_tls_port_end: 7599      # End of TLS / Split point
+  redis_plain_port_start: 7600  # Start of Plain-Text
+```
+
+**Port Allocation:**
+- TLS Range: 7300-7599 (300 ports)
+- Plain-Text Range: 7600-7899 (300 ports)
+- Total Capacity: 300 dual-mode tenants OR 600 single-mode tenants
+- Port Pairing: TLS port 7300 → Plain-Text port 7600 (+300 offset)
+
+**Security Modes:**
+- `tls-only`: Default, requires CA certificate (most secure)
+- `dual-mode`: Both TLS and Plain-Text active
+- `plain-only`: Password-only, no certificate required
 
 #### defaults
 

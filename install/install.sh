@@ -6,7 +6,7 @@
 # with automatic configuration, dependency checks, and initialization.
 #
 # Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
-# Version: 2.1.0-beta
+# Version: 2.1.2-Beta
 # License: MIT
 #
 
@@ -19,7 +19,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 echo "========================================"
-echo "CachePilot v2.1.0-beta Installation"
+echo "CachePilot v2.1.2-Beta Installation"
 echo "========================================"
 echo ""
 
@@ -321,7 +321,7 @@ fi
 echo ""
 
 echo "========================================"
-echo -e "${GREEN}✓ CachePilot v2.1.0-beta Installed${NC}"
+echo -e "${GREEN}✓ CachePilot v2.1.2-Beta Installed${NC}"
 echo "========================================"
 echo ""
 echo "Quick Start:"

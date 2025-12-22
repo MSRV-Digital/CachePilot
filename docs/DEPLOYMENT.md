@@ -2,7 +2,7 @@
 
 Author: Patrick Schlesinger <cachepilot@msrv-digital.de>  
 Company: MSRV Digital  
-Version: 2.1.0-beta  
+Version: 2.1.2-Beta  
 License: MIT
 
 Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
@@ -11,7 +11,7 @@ Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
 
 **BETA SOFTWARE NOTICE**
 
-This deployment guide is for CachePilot v2.1.0-beta. The installation process is tested and stable. Use appropriate caution in production environments. Test in staging first, maintain comprehensive backups, and review the Known Issues section in README.md before deploying.
+This deployment guide is for CachePilot v2.1.2-Beta. The installation process is tested and stable. Use appropriate caution in production environments. Test in staging first, maintain comprehensive backups, and review the Known Issues section in README.md before deploying.
 
 ---
 
@@ -127,11 +127,24 @@ sudo ufw allow 443/tcp
 # API port - ONLY from localhost
 sudo ufw allow from 127.0.0.1 to any port 8000
 
+# Redis port range (v2.2+: expanded for 300 dual-mode tenants)
+# Allow from trusted network only
+sudo ufw allow from 10.0.0.0/8 to any port 7300:7899 proto tcp
+
+# Or for specific subnet
+# sudo ufw allow from 192.168.1.0/24 to any port 7300:7899 proto tcp
+
 # Enable firewall
 sudo ufw enable
 
 # Verify rules
 sudo ufw status numbered
+```
+
+**Alternative (iptables):**
+```bash
+# Allow Redis ports from trusted network
+sudo iptables -A INPUT -p tcp --dport 7300:7899 -s 10.0.0.0/8 -j ACCEPT
 ```
 
 **Important:**

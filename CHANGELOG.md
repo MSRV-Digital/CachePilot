@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.2-Beta] - 2025-12-22
+
+### Added
+- **Security Mode Switcher**: TLS/Plain-Text/Dual-Mode Unterstützung mit automatischem Tenant-Neustart
+
 ### Fixed
 - **Docker Compose v1 compatibility**: Changed `docker compose` to `docker-compose` syntax (cli/lib/docker.sh, cli/lib/redisinsight.sh)
 - **Default IP configuration**: Updated config template to use safe localhost defaults (127.0.0.1)

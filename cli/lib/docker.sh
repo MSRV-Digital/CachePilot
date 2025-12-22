@@ -7,7 +7,7 @@
 #
 # Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
 # Company: MSRV Digital
-# Version: 2.1.0-beta
+# Version: 2.1.2-Beta
 # License: MIT
 # Repository: https://github.com/MSRV-Digital/CachePilot
 #
@@ -16,16 +16,53 @@
 
 create_docker_compose() {
     local tenant="$1"
-    local port="$2"
+    local port_tls="$2"
     local password="$3"
     local maxmemory="${4:-256}"
     local docker_limit="${5:-512}"
+    local security_mode="${6:-tls-only}"
+    local port_plain="${7:-}"
     local tenant_dir="${TENANTS_DIR}/${tenant}"
     
     local bind_ip="${INTERNAL_IP}"
     if [[ "${bind_ip}" == "localhost" ]]; then
         bind_ip="127.0.0.1"
     fi
+    
+    # Build port mappings based on security mode
+    local port_mappings=""
+    case "$security_mode" in
+        "tls-only")
+            # TLS only: Map external TLS port to internal TLS port (6380)
+            port_mappings="      - \"${bind_ip}:${port_tls}:6380\""
+            ;;
+        "dual-mode")
+            # Both modes: Map both ports
+            port_mappings="      - \"${bind_ip}:${port_tls}:6380\"
+      - \"${bind_ip}:${port_plain}:6379\""
+            ;;
+        "plain-only")
+            # Plain-Text only: Map external plain port to internal plain port (6379)
+            port_mappings="      - \"${bind_ip}:${port_plain}:6379\""
+            ;;
+    esac
+    
+    # Build health check command based on security mode
+    local healthcheck_cmd=""
+    case "$security_mode" in
+        "tls-only")
+            # TLS only: Connect to TLS port 6380
+            healthcheck_cmd='["CMD", "redis-cli", "-p", "6380", "--tls", "--cacert", "/certs/ca.crt", "--cert", "/certs/redis.crt", "--key", "/certs/redis.key", "-a", "'"${password}"'", "PING"]'
+            ;;
+        "dual-mode")
+            # Dual mode: Use TLS port 6380 for health check
+            healthcheck_cmd='["CMD", "redis-cli", "-p", "6380", "--tls", "--cacert", "/certs/ca.crt", "--cert", "/certs/redis.crt", "--key", "/certs/redis.key", "-a", "'"${password}"'", "PING"]'
+            ;;
+        "plain-only")
+            # Plain-Text only: Connect to plain port 6379 (no TLS)
+            healthcheck_cmd='["CMD", "redis-cli", "-p", "6379", "-a", "'"${password}"'", "PING"]'
+            ;;
+    esac
     
     cat > "${tenant_dir}/docker-compose.yml" << EOF
 
@@ -35,7 +72,7 @@ services:
     container_name: redis-${tenant}
     restart: unless-stopped
     ports:
-      - "${bind_ip}:${port}:6379"
+${port_mappings}
     volumes:
       - ./data:/data
       - ./certs:/certs:ro
@@ -45,7 +82,7 @@ services:
       - cachepilot-net
     mem_limit: ${docker_limit}m
     healthcheck:
-      test: ["CMD", "redis-cli", "--tls", "--cacert", "/certs/ca.crt", "--cert", "/certs/redis.crt", "--key", "/certs/redis.key", "-a", "${password}", "PING"]
+      test: ${healthcheck_cmd}
       interval: 10s
       timeout: 3s
       retries: 3
@@ -61,14 +98,26 @@ create_redis_config() {
     local tenant="$1"
     local password="$2"
     local maxmemory="$3"
+    local security_mode="${4:-tls-only}"
     local tenant_dir="${TENANTS_DIR}/${tenant}"
     
-    cat > "${tenant_dir}/redis.conf" << EOF
+    # Generate redis.conf based on security mode
+    case "$security_mode" in
+        "tls-only")
+            # TLS only: Disable plain-text, enable TLS on internal port 6380
+            cat > "${tenant_dir}/redis.conf" << EOF
+# CachePilot Redis Configuration - TLS Only Mode
+# Security Mode: tls-only (default, most secure)
 bind 0.0.0.0
+
+# Plain-Text port disabled for security
 port 0
+
+# Password authentication required
 requirepass ${password}
 
-tls-port 6379
+# TLS Configuration (internal container port 6380)
+tls-port 6380
 tls-cert-file /certs/redis.crt
 tls-key-file /certs/redis.key
 tls-ca-cert-file /certs/ca.crt
@@ -76,10 +125,60 @@ tls-auth-clients optional
 tls-protocols "TLSv1.2 TLSv1.3"
 tls-ciphers DEFAULT:@SECLEVEL=1
 tls-prefer-server-ciphers yes
+EOF
+            ;;
+        "dual-mode")
+            # Both modes: Enable both plain-text (6379) and TLS (6380)
+            cat > "${tenant_dir}/redis.conf" << EOF
+# CachePilot Redis Configuration - Dual Mode
+# Security Mode: dual-mode (both TLS and Plain-Text available)
+bind 0.0.0.0
 
+# Plain-Text port enabled (internal container port 6379)
+port 6379
+
+# Password authentication required for both modes
+requirepass ${password}
+
+# TLS Configuration (internal container port 6380)
+tls-port 6380
+tls-cert-file /certs/redis.crt
+tls-key-file /certs/redis.key
+tls-ca-cert-file /certs/ca.crt
+tls-auth-clients optional
+tls-protocols "TLSv1.2 TLSv1.3"
+tls-ciphers DEFAULT:@SECLEVEL=1
+tls-prefer-server-ciphers yes
+EOF
+            ;;
+        "plain-only")
+            # Plain-Text only: Disable TLS, use password authentication
+            cat > "${tenant_dir}/redis.conf" << EOF
+# CachePilot Redis Configuration - Plain-Text Only Mode
+# Security Mode: plain-only (simplified, password authentication only)
+# WARNING: This mode does not use TLS encryption
+bind 0.0.0.0
+
+# Plain-Text port enabled (internal container port 6379)
+port 6379
+
+# TLS disabled
+tls-port 0
+
+# Password authentication required
+requirepass ${password}
+EOF
+            ;;
+    esac
+    
+    # Add common configuration (applies to all modes)
+    cat >> "${tenant_dir}/redis.conf" << EOF
+
+# Memory Management
 maxmemory ${maxmemory}mb
 maxmemory-policy allkeys-lru
 
+# Persistence Configuration
 save 900 1
 save 300 10
 save 60 10000
@@ -92,6 +191,7 @@ appendonly yes
 appendfilename "appendonly.aof"
 appendfsync everysec
 
+# Security: Disable dangerous commands
 rename-command KEYS ""
 rename-command CONFIG ""
 rename-command SHUTDOWN ""
@@ -99,6 +199,7 @@ rename-command BGSAVE ""
 rename-command BGREWRITEAOF ""
 rename-command DEBUG ""
 
+# Slow Log
 slowlog-log-slower-than 10000
 slowlog-max-len 128
 

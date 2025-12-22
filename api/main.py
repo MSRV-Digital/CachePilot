@@ -6,7 +6,7 @@ with authentication, rate limiting, and comprehensive monitoring.
 
 Author: Patrick Schlesinger <cachepilot@msrv-digital.de>
 Company: MSRV Digital
-Version: 2.1.0-beta
+Version: 2.1.2-Beta
 License: MIT
 
 Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="CachePilot API",
     description="REST API for Redis Multi-Tenant Manager",
-    version="2.1.0-beta",
+    version="2.1.2-Beta",
     docs_url="/api/docs" if settings.debug else None,
     redoc_url="/api/redoc" if settings.debug else None,
 )
@@ -95,7 +95,7 @@ app.include_router(system.router, prefix="/api/v1")
 async def root():
     return {
         "name": "CachePilot API",
-        "version": "2.1.0-beta",
+        "version": "2.1.2-Beta",
         "status": "running"
     }
 

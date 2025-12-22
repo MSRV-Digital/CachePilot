@@ -52,7 +52,7 @@ body:
     id: version
     attributes:
       label: Affected Version
-      placeholder: "2.1.0-beta"
+      placeholder: "2.1.2-Beta"
     validations:
       required: true
 
