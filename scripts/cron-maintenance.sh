@@ -17,6 +17,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(dirname "$SCRIPT_DIR")"
 REDIS_MGR="/usr/local/bin/cachepilot"
+LIB_DIR="${BASE_DIR}/cli/lib"
+
+# Export LIB_DIR for common.sh
+export LIB_DIR
 
 # Source required libraries (these will load paths from config)
 source "${BASE_DIR}/cli/lib/common.sh"
@@ -105,10 +109,11 @@ main() {
     
     # 4. Alert Management
     log_message "Checking active alerts..."
-    local unresolved_alerts=$(alert_list "" "" "false" 2>/dev/null | grep -o '"id"' | wc -l || echo "0")
+    local unresolved_alerts=$(alert_list "" "" "false" 2>/dev/null | grep -o '"id"' | wc -l 2>/dev/null || echo "0")
+    unresolved_alerts=$(echo "$unresolved_alerts" | tr -d ' \n\r' | head -n1)
     log_message "  Active alerts: ${unresolved_alerts}"
     
-    if [ ${unresolved_alerts} -gt 0 ]; then
+    if [[ -n "$unresolved_alerts" ]] && [[ "$unresolved_alerts" -gt 0 ]]; then
         log_warn "maintenance" "There are ${unresolved_alerts} unresolved alerts"
     fi
     
@@ -126,13 +131,15 @@ main() {
     local deleted_logs=$(find "$LOGS_DIR" -name "maintenance-*.log" -mtime +30 -delete -print | wc -l)
     log_message "  Deleted ${deleted_logs} old maintenance log(s)"
     
-    # Clean up old metrics
-    log_message "  Cleaning up old metrics (>7 days)..."
-    cleanup_old_metrics 7 >> "$LOG_FILE" 2>&1
+    # Clean up old metrics (using configured retention)
+    local metrics_retention="${CONFIG_MONITORING[metrics_retention_days]:-7}"
+    log_message "  Cleaning up old metrics (>${metrics_retention} days)..."
+    cleanup_old_metrics "$metrics_retention" >> "$LOG_FILE" 2>&1
     
-    # Clean up old resolved alerts
-    log_message "  Cleaning up old resolved alerts (>30 days)..."
-    alert_cleanup 30 >> "$LOG_FILE" 2>&1
+    # Clean up old resolved alerts (using configured retention)
+    local alert_retention="${CONFIG_MONITORING[alert_retention_days]:-30}"
+    log_message "  Cleaning up old resolved alerts (>${alert_retention} days)..."
+    alert_cleanup "$alert_retention" >> "$LOG_FILE" 2>&1
     
     # 7. Generate Statistics Report
     log_message "Generating statistics report..."
@@ -163,12 +170,58 @@ main() {
         log_error "maintenance" "Docker daemon health check failed"
     fi
     
+    # 10. RedisInsight Health Check
+    log_message "Checking RedisInsight instances..."
+    local insight_running=0
+    local insight_stopped=0
+    # Count RedisInsight instances
+    local nginx_count=$(docker ps --filter "name=nginx-" --format '{{.Names}}' 2>/dev/null | wc -l || echo "0")
+    insight_running=${nginx_count}
+    log_message "  RedisInsight instances: ${insight_running} running"
+    
+    # 11. API Service Status Check
+    log_message "Checking API service..."
+    if systemctl is-active --quiet cachepilot-api 2>/dev/null; then
+        log_message "✓ API service: RUNNING"
+    else
+        log_message "⚠ API service: STOPPED or NOT INSTALLED"
+        log_warn "maintenance" "API service is not running"
+    fi
+    
+    # 12. Security Mode Validation
+    log_message "Validating tenant security modes..."
+    local invalid_modes=0
+    local tls_only=$(grep -l "^SECURITY_MODE=tls-only" "${TENANTS_DIR}"/*/config.env 2>/dev/null | wc -l | tr -d ' \n\r' || echo "0")
+    local dual_mode=$(grep -l "^SECURITY_MODE=dual-mode" "${TENANTS_DIR}"/*/config.env 2>/dev/null | wc -l | tr -d ' \n\r' || echo "0")
+    local plain_only=$(grep -l "^SECURITY_MODE=plain-only" "${TENANTS_DIR}"/*/config.env 2>/dev/null | wc -l | tr -d ' \n\r' || echo "0")
+    log_message "  Security modes: TLS-only=${tls_only}, Dual=${dual_mode}, Plain=${plain_only}"
+    
+    # 13. Persistence Mode Check
+    log_message "Checking persistence modes..."
+    local memory_only_count=$(grep -l "^PERSISTENCE_MODE=memory-only" "${TENANTS_DIR}"/*/config.env 2>/dev/null | wc -l | tr -d ' \n\r' || echo "0")
+    local persistent_count=$(grep -l "^PERSISTENCE_MODE=persistent" "${TENANTS_DIR}"/*/config.env 2>/dev/null | wc -l | tr -d ' \n\r' || echo "0")
+    # Count tenants without explicit PERSISTENCE_MODE (defaults to memory-only)
+    local total_tenants=$(find "${TENANTS_DIR}" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' \n\r' || echo "0")
+    memory_only_count=$((total_tenants - persistent_count))
+    log_message "  Persistence: Memory-only=${memory_only_count}, Persistent=${persistent_count}"
+    
+    # 14. Error Pattern Analysis
+    log_message "Analyzing error patterns..."
+    local error_count=0
+    if command -v log_get_errors &>/dev/null; then
+        error_count=$(log_get_errors 100 2>/dev/null | grep -c '"level":"ERROR"' | tr -d ' \n\r' || echo "0")
+    fi
+    log_message "  Recent errors (last 100 entries): ${error_count}"
+    if [[ -n "$error_count" ]] && [[ "$error_count" -gt 10 ]]; then
+        log_warn "maintenance" "High error count detected: ${error_count} errors in last 100 log entries"
+    fi
+    
     # Final Summary
     log_message "=== Maintenance Complete ==="
     log_info "maintenance" "Automated maintenance tasks completed"
     
-    # Log summary to structured log
-    log_info "maintenance" "Maintenance summary" "" "{\"health_code\":${health_code},\"cert_code\":${cert_code},\"disk_code\":${disk_code},\"unresolved_alerts\":${unresolved_alerts}}"
+    # Log comprehensive summary to structured log
+    log_info "maintenance" "Maintenance summary" "" "{\"health_code\":${health_code},\"cert_code\":${cert_code},\"disk_code\":${disk_code},\"unresolved_alerts\":${unresolved_alerts},\"insight_running\":${insight_running},\"insight_stopped\":${insight_stopped},\"security_invalid\":${invalid_modes},\"memory_only\":${memory_only_count},\"persistent\":${persistent_count},\"recent_errors\":${error_count}}"
 }
 
 # Run main maintenance routine
