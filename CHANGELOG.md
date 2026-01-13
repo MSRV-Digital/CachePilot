@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Cronjob CLI Compatibility**: Fixed incompatible CLI commands in automated tasks
+  - Corrected `health check-system --quiet` → `health --json` (subcommand didn't exist)
+  - Corrected `certs check-expiry --quiet` → `check-certs` (wrong command format)
+  - Removed `backup cleanup --days 30` (not implemented, handled by maintenance script)
+  - Removed `logs rotate` (not implemented, handled by logrotate)
+  - All cronjobs now use correct CLI syntax and execute successfully
+  - Added `validate-cron.sh` script to test cronjob commands before deployment
+
 - **RedisInsight Integration**: Fixed duplicate connections and configuration issues
   - Removed dual configuration approach (environment variables + database manipulation)
   - Fixed TLS configuration for plain-only tenants
@@ -18,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **RedisInsight API Integration**: Complete REST API and frontend support for RedisInsight management
 - **Memory-Only Persistence Mode**: In-memory operation for ultra-low latency (1-5ms vs 100-200ms)
 - **Redis Latency Testing Tool**: Performance validation script (`scripts/test-redis-latency.py`)
+- **Cronjob Validation Script**: `install/scripts/validate-cron.sh` for testing automated task commands
 
 ## [2.1.2-Beta] - 2025-12-22
 
