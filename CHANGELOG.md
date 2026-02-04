@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Certbot Renewal Hook**: Nginx was not reloaded after Let's Encrypt certificate renewal, causing expired certificates to be served
+  - `install/scripts/setup-nginx.sh`: Added `--deploy-hook "systemctl reload nginx"` to certbot command
+  - `install/upgrade.sh`: Added migration step (9.5/11) that patches existing renewal configs with `post_hook`
+  - Impact: Certificates are now automatically applied after renewal without manual intervention
+
 - **Cronjob CLI Compatibility**: Fixed incompatible CLI commands in automated tasks
   - Corrected `health check-system --quiet` → `health --json` (subcommand didn't exist)
   - Corrected `certs check-expiry --quiet` → `check-certs` (wrong command format)
@@ -21,6 +26,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed TLS configuration for plain-only tenants
   - Fixed port configuration: TLS uses port 6380, plain-only uses port 6379
   - Migration: Disable/re-enable RedisInsight to apply fix
+
+### Security
+- **Frontend Dependencies**: Fixed 6 Dependabot vulnerabilities
+  - Updated `react-router-dom` to 6.30.3 (XSS via open redirects, GHSA-2w69-qvjg-hvjx)
+  - Updated `glob` transitive dep (command injection, GHSA-5j98-mcp5-4vw2)
+  - Updated `js-yaml` transitive dep (prototype pollution, GHSA-mh29-5h37-fv8m)
+  - Updated `lodash` transitive dep (prototype pollution, GHSA-xxjr-mmjv-4gpg)
+- **Python Dependencies**: Fixed critical vulnerabilities in API dependencies
+  - `fastapi` 0.104.1 → 0.128.0
+  - `starlette` 0.27.0 → 0.50.0 (CVE-2024-47874, CVE-2025-54121, CVE-2025-62727)
+  - `python-multipart` 0.0.18 → 0.0.22 (CVE-2026-24486)
+  - `uvicorn` 0.24.0 → 0.34.0
+  - `pydantic` 2.5.0 → 2.10.4
+  - `httpx` 0.25.1 → 0.28.1
 
 ### Added
 - **RedisInsight API Integration**: Complete REST API and frontend support for RedisInsight management
