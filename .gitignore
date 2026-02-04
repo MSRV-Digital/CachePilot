@@ -1,6 +1,11 @@
 # Redis Manager - Git Ignore File v2.0
 
 # ===================================
+# AI Assistant Config (local only)
+# ===================================
+CLAUDE.md
+
+# ===================================
 # Secrets & API Keys
 # ===================================
 config/api-keys.json
