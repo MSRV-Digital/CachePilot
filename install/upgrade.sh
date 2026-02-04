@@ -339,6 +339,30 @@ if [ -d "$INSTALL_DIR/frontend" ]; then
 fi
 echo ""
 
+echo -e "${BLUE}[9.5/11]${NC} Fixing certbot renewal hook..."
+# Ensure certbot reloads nginx after certificate renewal (fix for expired cert bug)
+if [ -d "/etc/letsencrypt/renewal" ]; then
+    HOOK_FIXED=0
+    for renewal_conf in /etc/letsencrypt/renewal/*.conf; do
+        [ -f "$renewal_conf" ] || continue
+        if ! grep -q "post_hook\s*=\s*systemctl reload nginx" "$renewal_conf" 2>/dev/null; then
+            # Add post_hook under [renewalparams] section
+            if grep -q "\[renewalparams\]" "$renewal_conf"; then
+                sed -i '/\[renewalparams\]/a post_hook = systemctl reload nginx' "$renewal_conf"
+                ((HOOK_FIXED++))
+            fi
+        fi
+    done
+    if [ $HOOK_FIXED -gt 0 ]; then
+        echo -e "${GREEN}✓${NC} Added nginx reload hook to $HOOK_FIXED certbot renewal config(s)"
+    else
+        echo "Certbot renewal hooks already configured"
+    fi
+else
+    echo "No certbot renewal configs found, skipping"
+fi
+echo ""
+
 echo -e "${BLUE}[10/11]${NC} Updating nginx..."
 if [ "$FRONTEND_UPDATED" = true ] && [ -x "$INSTALL_DIR/install/scripts/setup-nginx.sh" ] && command -v nginx &> /dev/null && [ -f "/etc/nginx/sites-available/redis-manager" ]; then
     read -p "Update nginx? (Y/n): " UPDATE_NGINX

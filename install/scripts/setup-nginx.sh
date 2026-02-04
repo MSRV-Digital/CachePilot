@@ -315,7 +315,7 @@ EOF_NGINX
         echo "Using webroot mode to avoid nginx config conflicts..."
         
         # Use webroot mode instead of nginx mode to avoid conflicts with SPA routing
-        if certbot certonly --webroot -w /var/www/html -d "$SERVER_NAME" --non-interactive --agree-tos --email "$LE_EMAIL"; then
+        if certbot certonly --webroot -w /var/www/html -d "$SERVER_NAME" --non-interactive --agree-tos --email "$LE_EMAIL" --deploy-hook "systemctl reload nginx"; then
             echo -e "${GREEN}✓${NC} SSL certificate obtained!"
             
             # Now manually configure nginx for SSL
