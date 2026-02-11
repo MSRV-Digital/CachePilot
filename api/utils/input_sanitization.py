@@ -149,7 +149,7 @@ def validate_backup_name(name: str) -> bool:
     
     return True
 
-def validate_tls_cert_path(path: str, base_dir: str = "/opt/cachepilot/data/ca") -> str:
+def validate_tls_cert_path(path: str, base_dir: str = "/var/cachepilot/ca") -> str:
     validated_path = sanitize_file_path(path, base_dir)
     
     if not validated_path.endswith(('.pem', '.crt', '.key')):

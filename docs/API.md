@@ -9,9 +9,21 @@ Copyright (c) 2025 Patrick Schlesinger, MSRV Digital
 
 ## Overview
 
-The CachePilot API provides RESTful access to all tenant management, monitoring, and system operations. All requests require authentication via API key.
+The CachePilot API provides RESTful access to all tenant management, monitoring, and system operations. Most endpoints require authentication via API key.
 
 **Base URL:** `http://localhost:8000/api/v1`
+
+### Root Endpoints (No Authentication Required)
+
+```http
+GET /
+```
+Returns application info (name, version, status).
+
+```http
+GET /api/v1/health
+```
+Returns health status and timestamp.
 
 ## Authentication
 
@@ -140,10 +152,17 @@ GET /api/v1/tenants/{tenant_name}
   "message": "Tenant status retrieved",
   "data": {
     "tenant": "client1",
-    "port": "7300",
+    "port": 7300,
     "status": "running",
-    "memory_used": "10.5M",
-    "clients": "3"
+    "created": "2025-11-01T10:30:00Z",
+    "memory_used": 10485760,
+    "memory_limit": 268435456,
+    "docker_limit": 536870912,
+    "clients": 3,
+    "keys": 150,
+    "uptime_seconds": 86400,
+    "insight_enabled": false,
+    "insight_port": null
   }
 }
 ```
@@ -424,7 +443,7 @@ POST /api/v1/system/restore
 ```json
 {
   "tenant": "client1",
-  "backup_file": "/opt/cachepilot/backups/client1_20250101_120000.tar.gz"
+  "backup_file": "/var/cachepilot/backups/client1_20250101_120000.tar.gz"
 }
 ```
 
@@ -441,6 +460,23 @@ POST /api/v1/system/backup/enable/{tenant_name}
 #### Disable Auto Backup
 ```http
 POST /api/v1/system/backup/disable/{tenant_name}
+```
+
+#### Delete Backup
+```http
+DELETE /api/v1/system/backups/{tenant_name}/{backup_file}
+```
+
+**Path Parameters:**
+- `tenant_name`: Name of the tenant
+- `backup_file`: Filename of the backup to delete
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Backup deleted successfully"
+}
 ```
 
 ## Error Responses
@@ -461,15 +497,27 @@ All errors follow this format:
 - `400 Bad Request`: Invalid request parameters
 - `401 Unauthorized`: Invalid or missing API key
 - `404 Not Found`: Resource not found
+- `415 Unsupported Media Type`: Content-Type is not application/json
 - `429 Too Many Requests`: Rate limit exceeded
 - `500 Internal Server Error`: Server error
 
 ## Rate Limiting
 
-Default rate limits: 100 requests per 60 seconds per API key.
+Rate limits are enforced per API key with different limits per endpoint category:
 
-Rate limit information is included in response headers:
-- `X-Process-Time`: Request processing time
+| Endpoint Category | Rate Limit |
+|-------------------|------------|
+| `/api/v1/tenants/*` | 50 requests/60s |
+| `/api/v1/monitoring/*` | 200 requests/60s |
+| `/api/v1/system/*` | 30 requests/60s |
+| Default | 100 requests/60s |
+
+**Security Features:**
+- IP-based blocking after excessive rate limit violations (15-minute temporary block)
+- Failed authentication tracking: 5 failed attempts within 5 minutes triggers security alert
+
+Response headers include:
+- `X-Process-Time`: Request processing time in seconds
 
 ## Examples
 
@@ -510,10 +558,24 @@ print(response.json())
 
 ## Interactive Documentation
 
-FastAPI provides interactive API documentation:
+FastAPI provides interactive API documentation (available when debug mode is enabled):
 
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+- Swagger UI: http://localhost:8000/api/docs
+- ReDoc: http://localhost:8000/api/redoc
+- OpenAPI JSON: http://localhost:8000/openapi.json
+
+## Security Headers
+
+All API responses include the following security headers:
+
+| Header | Value |
+|--------|-------|
+| `X-Content-Type-Options` | `nosniff` |
+| `X-Frame-Options` | `SAMEORIGIN` |
+| `X-XSS-Protection` | `1; mode=block` |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `Permissions-Policy` | `geolocation=(), microphone=(), camera=()` |
 
 ## Security Considerations
 
@@ -572,21 +634,21 @@ def api_call_with_retry(url, headers, max_retries=3):
 
 **Input Validation:**
 
-Tenant names must match: `^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`
+Tenant names must match: `^[a-z0-9][a-z0-9-]{0,62}$` (max 63 characters)
 
 Allowed: `client1`, `test-server`, `prod-cache`  
 Blocked: `../../../etc`, `client;rm -rf /`, `<script>alert(1)</script>`
 
 **Audit Logging:**
 
-All API requests are logged to `/opt/cachepilot/data/logs/audit.log`:
+All API requests are logged to `/var/log/cachepilot/audit.log`:
 
 ```bash
 # Monitor live API access
-tail -f /opt/cachepilot/data/logs/audit.log
+tail -f /var/log/cachepilot/audit.log
 
 # Find failed authentication attempts
-grep '"status": 401' /opt/cachepilot/data/logs/audit.log
+grep '"status": 401' /var/log/cachepilot/audit.log
 ```
 
 For complete security documentation, see [SECURITY.md](SECURITY.md).
