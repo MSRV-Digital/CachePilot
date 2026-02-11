@@ -149,7 +149,7 @@ show_tenant_status() {
         echo "RedisInsight:"
         if docker ps --format '{{.Names}}' | grep -q "^nginx-${tenant}$"; then
             echo -e "  Status: ${GREEN}ENABLED${NC}"
-            echo "  Public URL: https://${PUBLIC_IP}:${INSIGHT_PORT}"
+            echo "  Public URL: https://${SERVER_URL}:${INSIGHT_PORT}"
             echo "  Internal URL: https://${INTERNAL_IP}:${INSIGHT_PORT}"
             echo "  Username: ${INSIGHT_USER:-admin}"
         else

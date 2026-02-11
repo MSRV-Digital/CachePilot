@@ -84,7 +84,7 @@ Web: https://msrv-digital.de
 RedisInsight:
 -------------
 Status: $(if [[ -n "${INSIGHT_PORT}" ]] && [[ "${INSIGHT_PORT}" != "0" ]]; then echo "Enabled"; else echo "Disabled"; fi)
-$(if [[ -n "${INSIGHT_PORT}" ]] && [[ "${INSIGHT_PORT}" != "0" ]]; then echo "Public URL: https://${PUBLIC_IP}:${INSIGHT_PORT}"; echo "Internal URL: https://${INTERNAL_IP}:${INSIGHT_PORT}"; echo "Username: ${INSIGHT_USER:-admin}"; echo "Password: ${INSIGHT_PASS}"; echo ""; echo "Redis Host (in RedisInsight): redis-${tenant}"; echo "Redis Port (in RedisInsight): 6379"; echo "Redis Password: Use the password above"; echo "Note: Accept the self-signed certificate warning in your browser"; fi)
+$(if [[ -n "${INSIGHT_PORT}" ]] && [[ "${INSIGHT_PORT}" != "0" ]]; then echo "Public URL: https://${SERVER_URL}:${INSIGHT_PORT}"; echo "Internal URL: https://${INTERNAL_IP}:${INSIGHT_PORT}"; echo "Username: ${INSIGHT_USER:-admin}"; echo "Password: ${INSIGHT_PASS}"; echo ""; echo "Redis Host (in RedisInsight): redis-${tenant}"; echo "Redis Port (in RedisInsight): 6379"; echo "Redis Password: Use the password above"; echo "Note: Accept the self-signed certificate warning in your browser"; fi)
 EOF
     
     cat > "${temp_dir}/README.md" << EOF

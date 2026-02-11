@@ -89,6 +89,7 @@ load_system_config() {
     
     CONFIG_NETWORK[internal_ip]="${CONFIG_network_internal_ip}"
     CONFIG_NETWORK[public_ip]="${CONFIG_network_public_ip}"
+    CONFIG_NETWORK[server_url]="${CONFIG_network_server_url:-}"
     CONFIG_NETWORK[redis_port_start]="${CONFIG_network_redis_port_start}"
     CONFIG_NETWORK[redis_port_end]="${CONFIG_network_redis_port_end}"
     CONFIG_NETWORK[redis_tls_port_end]="${CONFIG_network_redis_tls_port_end}"
@@ -128,6 +129,7 @@ load_system_config() {
     
     INTERNAL_IP="${CONFIG_NETWORK[internal_ip]}"
     PUBLIC_IP="${CONFIG_NETWORK[public_ip]}"
+    SERVER_URL="${CONFIG_NETWORK[server_url]:-${PUBLIC_IP}}"
     REDIS_PORT_START="${CONFIG_NETWORK[redis_port_start]}"
     REDIS_PORT_END="${CONFIG_NETWORK[redis_port_end]}"
     INSIGHT_PORT_START="${CONFIG_NETWORK[insight_port_start]}"

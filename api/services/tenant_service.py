@@ -433,6 +433,8 @@ class TenantService:
         system_config_file = Path(self.settings.config_dir) / 'system.yaml'
         internal_ip = 'localhost'
         public_ip = 'not-configured'
+        server_url = ''
+        public_host = public_ip
         org_name = 'Organization'
         contact_name = 'Administrator'
         contact_email = 'admin@example.com'
@@ -446,6 +448,8 @@ class TenantService:
                     if 'network' in system_config:
                         internal_ip = system_config['network'].get('internal_ip', internal_ip)
                         public_ip = system_config['network'].get('public_ip', public_ip)
+                        server_url = system_config['network'].get('server_url', '')
+                        public_host = server_url if server_url else public_ip
                     if 'organization' in system_config:
                         org_name = system_config['organization'].get('name', org_name)
                         contact_name = system_config['organization'].get('contact_name', contact_name)
@@ -530,7 +534,9 @@ Email: {contact_email}
             "tenant": name,
             "security_mode": security_mode,
             "host": internal_ip,
-            "public_host": public_ip,
+            "public_host": public_host,
+            "public_ip": public_ip,
+            "server_url": server_url,
             "password": password,
             "ca_certificate": ca_certificate,
             "status": tenant_status.get('status', 'unknown'),

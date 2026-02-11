@@ -47,7 +47,7 @@ enable_redisinsight() {
     
     log "Enabling RedisInsight for tenant: $tenant"
     log "  RedisInsight Port: ${insight_port}"
-    log "  Public URL: https://${PUBLIC_IP}:${insight_port}"
+    log "  Public URL: https://${SERVER_URL}:${insight_port}"
     
     {
         echo "INSIGHT_PORT=${insight_port}"
@@ -88,7 +88,7 @@ enable_redisinsight() {
         success "RedisInsight enabled for tenant: $tenant"
         echo ""
         echo "Access RedisInsight:"
-        echo "  Public URL: https://${PUBLIC_IP}:${insight_port}"
+        echo "  Public URL: https://${SERVER_URL}:${insight_port}"
         echo "  Internal URL: https://${INTERNAL_IP}:${insight_port}"
         echo ""
         echo "Login Credentials:"
@@ -183,7 +183,7 @@ create_docker_compose_with_insight() {
     # Build RedisInsight environment variables based on TLS mode
     local redisinsight_env=""
     if [[ "$use_tls" == "true" ]]; then
-        redisinsight_env="      - RITRUSTEDORIGINS=https://${PUBLIC_IP}:${insight_port}
+        redisinsight_env="      - RITRUSTEDORIGINS=https://${SERVER_URL}:${insight_port}
       - RI_REDIS_HOST=redis-${tenant}
       - RI_REDIS_PORT=${redis_internal_port}
       - RI_REDIS_ALIAS=${tenant}
@@ -193,7 +193,7 @@ create_docker_compose_with_insight() {
       - RI_REDIS_TLS_CERT_PATH=/certs/redis.crt
       - RI_REDIS_TLS_KEY_PATH=/certs/redis.key"
     else
-        redisinsight_env="      - RITRUSTEDORIGINS=https://${PUBLIC_IP}:${insight_port}
+        redisinsight_env="      - RITRUSTEDORIGINS=https://${SERVER_URL}:${insight_port}
       - RI_REDIS_HOST=redis-${tenant}
       - RI_REDIS_PORT=${redis_internal_port}
       - RI_REDIS_ALIAS=${tenant}
@@ -283,7 +283,7 @@ show_redisinsight_status() {
         echo -e "Status: ${GREEN}RUNNING${NC}"
         echo ""
         echo "Access URLs:"
-        echo "  Public: https://${PUBLIC_IP}:${INSIGHT_PORT}"
+        echo "  Public: https://${SERVER_URL}:${INSIGHT_PORT}"
         echo "  Internal: https://${INTERNAL_IP}:${INSIGHT_PORT}"
         echo ""
         echo "Login Credentials:"

@@ -137,6 +137,36 @@ if [ -f "/etc/cachepilot/system.yaml" ]; then
     fi
 fi
 
+# Check if server_url field exists in system.yaml
+NEEDS_SERVER_URL_MIGRATION=false
+if [ -f "/etc/cachepilot/system.yaml" ]; then
+    if ! grep -q "server_url:" /etc/cachepilot/system.yaml 2>/dev/null; then
+        NEEDS_SERVER_URL_MIGRATION=true
+    fi
+fi
+
+if [ "$NEEDS_SERVER_URL_MIGRATION" = true ]; then
+    echo "Adding server_url field to system.yaml..."
+
+    # Try to detect domain from CORS origins in api.yaml
+    DETECTED_DOMAIN=""
+    if [ -f "/etc/cachepilot/api.yaml" ]; then
+        DETECTED_DOMAIN=$(grep -oP 'https?://\K[^/:]+' /etc/cachepilot/api.yaml 2>/dev/null | grep -v 'localhost' | head -1 || true)
+    fi
+
+    # Add server_url field after public_ip line
+    sed -i "/public_ip:/a\  server_url: \"${DETECTED_DOMAIN}\"               # Server domain for public URLs (empty = fallback to public_ip)" /etc/cachepilot/system.yaml
+
+    if [ -n "$DETECTED_DOMAIN" ]; then
+        echo -e "${GREEN}✓${NC} server_url added: $DETECTED_DOMAIN (auto-detected from api.yaml)"
+    else
+        echo -e "${GREEN}✓${NC} server_url field added (empty - will fallback to public_ip)"
+    fi
+else
+    echo "server_url field already present in system.yaml"
+fi
+echo ""
+
 if [ "$NEEDS_PORT_MIGRATION" = true ]; then
     echo "Updating port range configuration for dual-mode support..."
     

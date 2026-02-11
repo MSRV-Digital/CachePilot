@@ -287,6 +287,11 @@ sed -i "s|url: http://localhost|url: $SERVER_URL|g" "/etc/cachepilot/frontend.ya
 sed -i "s|http://localhost|$SERVER_URL|g" "/etc/cachepilot/api.yaml" 2>/dev/null || true
 sed -i "s|http://localhost:3000|$SERVER_URL|g" "/etc/cachepilot/api.yaml" 2>/dev/null || true
 
+# Server domain in system.yaml speichern
+if [[ "$SERVER_DOMAIN" != "localhost" ]]; then
+    sed -i "s/server_url: .*/server_url: $SERVER_DOMAIN/" "/etc/cachepilot/system.yaml"
+fi
+
 export SERVER_DOMAIN SERVER_URL USE_SSL
 echo ""
 
