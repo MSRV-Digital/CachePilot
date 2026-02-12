@@ -20,10 +20,24 @@ GET /
 ```
 Returns application info (name, version, status).
 
+> **Note:** This endpoint returns raw JSON, not the standard `ApiResponse` wrapper.
+
+**Response:**
+```json
+{"name": "CachePilot API", "version": "2.1.2-Beta", "status": "running"}
+```
+
 ```http
 GET /api/v1/health
 ```
 Returns health status and timestamp.
+
+> **Note:** This endpoint returns raw JSON, not the standard `ApiResponse` wrapper.
+
+**Response:**
+```json
+{"status": "healthy", "timestamp": 1735689600.123456}
+```
 
 ## Authentication
 
@@ -133,8 +147,8 @@ GET /api/v1/tenants
   "message": "Found 2 tenants",
   "data": {
     "tenants": [
-      {"tenant": "client1", "port": "7300", "status": "running"},
-      {"tenant": "client2", "port": "7301", "status": "stopped"}
+      {"tenant": "client1", "port": "7300", "status": "running", "security_mode": "tls-only", "port_tls": "7300", "port_plain": ""},
+      {"tenant": "client2", "port": "7301", "status": "stopped", "security_mode": "dual-mode", "port_tls": "7301", "port_plain": "7401"}
     ]
   }
 }
@@ -152,19 +166,31 @@ GET /api/v1/tenants/{tenant_name}
   "message": "Tenant status retrieved",
   "data": {
     "tenant": "client1",
-    "port": 7300,
+    "port": "7300",
+    "security_mode": "tls-only",
+    "persistence_mode": "memory-only",
+    "port_tls": "7300",
+    "port_plain": "",
     "status": "running",
-    "created": "2025-11-01T10:30:00Z",
-    "memory_used": 10485760,
-    "memory_limit": 268435456,
-    "docker_limit": 536870912,
-    "clients": 3,
-    "keys": 150,
+    "memory_used": "10.00M",
+    "clients": "3",
+    "keys": "150",
     "uptime_seconds": 86400,
-    "insight_enabled": false,
-    "insight_port": null
+    "maxmemory": 256,
+    "docker_limit": 512,
+    "total_commands": "52340",
+    "keyspace_hits": "48201",
+    "keyspace_misses": "4139",
+    "hit_rate": "92.09%",
+    "memory_peak": "12.50M",
+    "evicted_keys": "0"
   }
 }
+```
+
+**Error Response (404):**
+```json
+{"detail": "Tenant client1 does not exist"}
 ```
 
 #### Create Tenant
@@ -206,6 +232,25 @@ POST /api/v1/tenants
 }
 ```
 
+**Error Response (400 — validation):**
+```json
+{
+  "success": false,
+  "message": "Validation error",
+  "error": "Memory limit must be between 64 and 4096 MB"
+}
+```
+
+**Error Response (422 — Pydantic):**
+```json
+{
+  "detail": [
+    {"loc": ["body", "tenant_name"], "msg": "string does not match regex '^[a-z0-9][a-z0-9-]{0,62}$'", "type": "value_error.str.regex"},
+    {"loc": ["body", "docker_limit_mb"], "msg": "docker_limit_mb must be at least 1.5x maxmemory_mb", "type": "value_error"}
+  ]
+}
+```
+
 #### Update Tenant
 ```http
 PATCH /api/v1/tenants/{tenant_name}
@@ -219,6 +264,15 @@ PATCH /api/v1/tenants/{tenant_name}
 }
 ```
 
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Tenant client1 updated successfully",
+  "data": {"tenant": "client1"}
+}
+```
+
 #### Delete Tenant
 ```http
 DELETE /api/v1/tenants/{tenant_name}?force=false
@@ -227,9 +281,36 @@ DELETE /api/v1/tenants/{tenant_name}?force=false
 **Query Parameters:**
 - `force` (boolean): Skip confirmation prompt
 
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Tenant client1 deleted successfully",
+  "data": {"tenant": "client1"}
+}
+```
+
+**Error Response (400):**
+```json
+{
+  "success": false,
+  "message": "Invalid tenant name",
+  "error": "Tenant name contains invalid characters"
+}
+```
+
 #### Start Tenant
 ```http
 POST /api/v1/tenants/{tenant_name}/start
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Tenant client1 started successfully",
+  "data": {"tenant": "client1", "status": "running"}
+}
 ```
 
 #### Stop Tenant
@@ -237,9 +318,27 @@ POST /api/v1/tenants/{tenant_name}/start
 POST /api/v1/tenants/{tenant_name}/stop
 ```
 
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Tenant client1 stopped successfully",
+  "data": {"tenant": "client1", "status": "stopped"}
+}
+```
+
 #### Restart Tenant
 ```http
 POST /api/v1/tenants/{tenant_name}/restart
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Tenant client1 restarted successfully",
+  "data": {"tenant": "client1", "status": "running"}
+}
 ```
 
 #### Rotate Password
@@ -264,11 +363,51 @@ POST /api/v1/tenants/{tenant_name}/rotate-password
 GET /api/v1/tenants/{tenant_name}/handover
 ```
 
-**Response includes connection details, CA certificate, and WordPress configuration.**
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Handover information retrieved",
+  "data": {
+    "tenant": "client1",
+    "security_mode": "dual-mode",
+    "host": "10.0.0.1",
+    "public_host": "redis.example.com",
+    "public_ip": "203.0.113.10",
+    "server_url": "redis.example.com",
+    "password": "s3cure-p4ssw0rd",
+    "ca_certificate": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----",
+    "status": "running",
+    "handover_package": "/var/cachepilot/tenants/client1/handover/client1-handover.zip",
+    "credentials_text": "...",
+    "tls_connection": {
+      "port": 7300,
+      "connection_string": "rediss://:s3cure-p4ssw0rd@10.0.0.1:7300",
+      "wordpress_config": "..."
+    },
+    "plaintext_connection": {
+      "port": 7400,
+      "connection_string": "redis://:s3cure-p4ssw0rd@10.0.0.1:7400",
+      "wordpress_config": "..."
+    }
+  }
+}
+```
+
+> **Note:** `tls_connection` is included when `security_mode` is `tls-only` or `dual-mode`. `plaintext_connection` is included when `security_mode` is `dual-mode` or `plain-only`.
 
 #### Regenerate Handover Package
 ```http
 POST /api/v1/tenants/{tenant_name}/handover/regenerate
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Handover package regenerated for tenant client1",
+  "data": {"tenant": "client1"}
+}
 ```
 
 #### Change Security Mode
@@ -278,6 +417,15 @@ POST /api/v1/tenants/{tenant_name}/security-mode?security_mode=dual-mode
 
 **Query Parameters:**
 - `security_mode` (string): New security mode (tls-only, dual-mode, plain-only)
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Security mode changed to dual-mode for tenant client1",
+  "data": {"tenant": "client1", "security_mode": "dual-mode"}
+}
+```
 
 ### RedisInsight Management (v2.1.2+)
 
@@ -392,6 +540,26 @@ GET /api/v1/monitoring/health
 GET /api/v1/monitoring/stats
 ```
 
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Statistics retrieved",
+  "data": {
+    "total_tenants": 5,
+    "running_tenants": 4,
+    "running": 4,
+    "stopped_tenants": 1,
+    "stopped": 1,
+    "total_memory_used": 536870912,
+    "total_memory_limit": 0,
+    "total_connections": 0,
+    "total_clients": 0,
+    "total_keys": 0
+  }
+}
+```
+
 #### Get Alerts
 ```http
 GET /api/v1/monitoring/alerts?severity=critical&resolved=false
@@ -402,9 +570,50 @@ GET /api/v1/monitoring/alerts?severity=critical&resolved=false
 - `tenant` (string): Filter by tenant name
 - `resolved` (boolean): Filter by resolution status
 
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Found 2 alerts",
+  "data": {
+    "alerts": [
+      {
+        "id": "alert-001",
+        "severity": "critical",
+        "tenant": "client1",
+        "title": "High memory usage",
+        "message": "Memory usage exceeds 90% threshold",
+        "timestamp": "2025-11-01T14:30:00Z",
+        "resolved": false,
+        "resolved_at": null
+      },
+      {
+        "id": "alert-002",
+        "severity": "warning",
+        "tenant": "client2",
+        "title": "Disk space low",
+        "message": "Available disk space below 20%",
+        "timestamp": "2025-11-01T13:15:00Z",
+        "resolved": false,
+        "resolved_at": null
+      }
+    ]
+  }
+}
+```
+
 #### Resolve Alert
 ```http
 POST /api/v1/monitoring/alerts/{alert_id}/resolve
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Alert alert-001 resolved",
+  "data": {"alert_id": "alert-001"}
+}
 ```
 
 #### Get Tenant Metrics
@@ -414,6 +623,27 @@ GET /api/v1/monitoring/metrics/{tenant_name}?hours=24
 
 **Query Parameters:**
 - `hours` (integer): Number of hours of history (1-168)
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Retrieved 3 metrics",
+  "data": {
+    "metrics": [
+      {
+        "tenant": "client1",
+        "metric_name": "memory_used",
+        "value": 10485760.0,
+        "unit": "bytes",
+        "timestamp": "2025-11-01T14:00:00Z",
+        "threshold": null,
+        "alert_triggered": false
+      }
+    ]
+  }
+}
+```
 
 ### System
 
@@ -429,9 +659,34 @@ POST /api/v1/system/backup
 }
 ```
 
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Backup created for tenant client1",
+  "data": {"tenant": "client1", "output": "Backup saved to /var/cachepilot/backups/client1_20250101_120000.tar.gz"}
+}
+```
+
 #### List Backups
 ```http
 GET /api/v1/system/backups/{tenant_name}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Found 3 backups",
+  "data": {
+    "tenant": "client1",
+    "backups": [
+      {"file": "client1_20250101_120000.tar.gz", "size": "2.5MB"},
+      {"file": "client1_20241231_000000.tar.gz", "size": "2.3MB"},
+      {"file": "client1_20241230_000000.tar.gz", "size": "2.1MB"}
+    ]
+  }
+}
 ```
 
 #### Restore Backup
@@ -447,9 +702,27 @@ POST /api/v1/system/restore
 }
 ```
 
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Tenant client1 restored from backup successfully",
+  "data": {"tenant": "client1", "backup_file": "/var/cachepilot/backups/client1_20250101_120000.tar.gz"}
+}
+```
+
 #### Verify Backup
 ```http
 POST /api/v1/system/verify-backup?backup_file=/path/to/backup.tar.gz
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Backup verification successful",
+  "data": {"backup_file": "/path/to/backup.tar.gz", "valid": true}
+}
 ```
 
 #### Enable Auto Backup
@@ -457,9 +730,27 @@ POST /api/v1/system/verify-backup?backup_file=/path/to/backup.tar.gz
 POST /api/v1/system/backup/enable/{tenant_name}
 ```
 
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Automated backups enabled for client1",
+  "data": {"tenant": "client1", "auto_backup": true}
+}
+```
+
 #### Disable Auto Backup
 ```http
 POST /api/v1/system/backup/disable/{tenant_name}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Automated backups disabled for client1",
+  "data": {"tenant": "client1", "auto_backup": false}
+}
 ```
 
 #### Delete Backup
@@ -475,31 +766,119 @@ DELETE /api/v1/system/backups/{tenant_name}/{backup_file}
 ```json
 {
   "success": true,
-  "message": "Backup deleted successfully"
+  "message": "Backup client1_20250101_120000.tar.gz deleted successfully",
+  "data": {"tenant": "client1", "backup_file": "client1_20250101_120000.tar.gz"}
 }
 ```
 
 ## Error Responses
 
-All errors follow this format:
+The API uses several different error response formats depending on where the error originates. Not all errors use the `ApiResponse` wrapper.
+
+### Error Format Summary
+
+| Status Code | Source | Format |
+|-------------|--------|--------|
+| 400 | Route-level / service validation | `{"success": false, "message": "...", "error": "..."}` |
+| 400 | Middleware (suspicious input) | `{"detail": "...", "error": "bad_request"}` |
+| 401 | Authentication | `{"detail": "..."}` |
+| 404 | Route-level | `{"detail": "..."}` |
+| 415 | Middleware (content-type) | `{"detail": "...", "error": "unsupported_media_type"}` |
+| 422 | Pydantic validation | `{"detail": [{"loc": [...], "msg": "...", "type": "..."}]}` |
+| 429 | Middleware (rate limit) | `{"detail": "...", "error": "too_many_requests"}` |
+| 500 | Global exception handler | `{"success": false, "message": "...", "error": "internal_server_error"}` |
+
+### Route-Level Errors (400, 404)
+
+Raised via `HTTPException` in route handlers and services. Returns the standard FastAPI format:
+
+```json
+{"detail": "Tenant client1 does not exist"}
+```
+
+Service-level validation errors use the `ApiResponse` format:
 
 ```json
 {
   "success": false,
-  "message": "Error description",
-  "error": "Detailed error information"
+  "message": "Validation error",
+  "error": "Memory limit must be between 64 and 4096 MB"
+}
+```
+
+### Authentication Errors (401)
+
+From the authentication module when the API key is missing or invalid:
+
+```json
+{"detail": "Missing API key"}
+```
+
+```json
+{"detail": "Invalid API key"}
+```
+
+### Pydantic Validation Errors (422)
+
+FastAPI's built-in request validation. Returns an array of validation errors:
+
+```json
+{
+  "detail": [
+    {"loc": ["body", "tenant_name"], "msg": "string does not match regex '^[a-z0-9][a-z0-9-]{0,62}$'", "type": "value_error.str.regex"},
+    {"loc": ["body", "docker_limit_mb"], "msg": "docker_limit_mb must be at least 1.5x maxmemory_mb", "type": "value_error"}
+  ]
+}
+```
+
+### Rate Limit Errors (429)
+
+From the rate limiting middleware. Includes a `Retry-After` header:
+
+```json
+{"detail": "Rate limit exceeded. Please try again later.", "error": "too_many_requests"}
+```
+
+> **Note:** The response includes the header `Retry-After: 60`.
+
+### Middleware Validation Errors (400)
+
+From the request validation middleware when suspicious input patterns are detected:
+
+```json
+{"detail": "Invalid request parameters", "error": "bad_request"}
+```
+
+### Content-Type Errors (415)
+
+From the content security middleware when a request body is sent without `application/json`:
+
+```json
+{"detail": "Content-Type must be application/json", "error": "unsupported_media_type"}
+```
+
+### Internal Server Errors (500)
+
+From the global exception handler for unhandled exceptions:
+
+```json
+{
+  "success": false,
+  "message": "An error occurred while processing your request",
+  "error": "internal_server_error"
 }
 ```
 
 ### Common HTTP Status Codes
 
 - `200 OK`: Request successful
-- `400 Bad Request`: Invalid request parameters
+- `400 Bad Request`: Invalid request parameters or service validation error
 - `401 Unauthorized`: Invalid or missing API key
 - `404 Not Found`: Resource not found
 - `415 Unsupported Media Type`: Content-Type is not application/json
+- `422 Unprocessable Entity`: Request body fails Pydantic validation
 - `429 Too Many Requests`: Rate limit exceeded
-- `500 Internal Server Error`: Server error
+- `500 Internal Server Error`: Unhandled server error
 
 ## Rate Limiting
 
